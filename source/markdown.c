@@ -1,10 +1,17 @@
 #include "../libs/markdown.h"
+#include <stdlib.h>
 
 #define SUCCESS 0 
 
 // === Init and Free ===
 document *markdown_init(void) {
-    return NULL;
+    document* new_doc = malloc(sizeof(document));
+    if (new_doc == NULL) {
+        return NULL;
+    }
+    new_doc->head = NULL;
+    new_doc->version = 0;
+    return new_doc;
 }
 
 void markdown_free(document *doc) {

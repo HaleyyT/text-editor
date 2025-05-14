@@ -1,0 +1,26 @@
+# Compiled object files
+*.o
+
+# Executable files
+a.out
+server
+client
+
+# Backup or temporary files
+*~
+*.swp
+.DS_Store
+
+# Build output
+/build/
+/bin/
+/obj/
+
+# Logs
+*.log
+
+# VSCode workspace settings (optional)
+.vscode/
+
+# System files
+Thumbs.db
