@@ -8,11 +8,13 @@
  */
 
 typedef struct{
-    // TODO
+    char *text;
+    struct chunk *next;
 } chunk;
 
 typedef struct {
-    // TODO
+    chunk *head;
+    uint64_t version;
 } document;
 
 // Functions from here onwards.

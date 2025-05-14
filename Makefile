@@ -11,14 +11,14 @@ server: server.o markdown.o
 client: client.o markdown.o
 	$(CC) $(CFLAGS) client.o markdown.o -o client
 
-server.o: server.c
-	$(CC) $(CFLAGS) -c server.c
+server.o: source/server.c
+	$(CC) $(CFLAGS) -Ilibs -c source/server.c -o server.o
 
-client.o: client.c
-	$(CC) $(CFLAGS) -c client.c
+client.o: source/client.c
+	$(CC) $(CFLAGS) -Ilibs -c source/client.c -o client.o
 
-markdown.o: markdown.c
-	$(CC) $(CFLAGS) -c markdown.c
+markdown.o: source/markdown.c
+	$(CC) $(CFLAGS) -Ilibs -c source/markdown.c -o markdown.o
 
 
 clean:

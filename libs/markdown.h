@@ -11,15 +11,6 @@
  */
 
 // Return -1 if the cursor position is invalid
-typedef struct DocumentNode{
-    char ch;
-    struct DocumentNode *next;
-} DocumentNode;
-
-typedef struct document{
-    DocumentNode *head;
-    uint64_t version;
-} document;
 
 // Initialize and free a document
 document * markdown_init(void);
