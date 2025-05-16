@@ -1,5 +1,8 @@
 #include "../libs/markdown.h"
 #include <stdlib.h>
+#include <string.h>
+
+
 
 #define SUCCESS 0 
 
@@ -164,3 +167,6 @@ char *markdown_flatten(const document *doc) {
 void markdown_increment_version(document *doc) {
     if (doc) doc->version++;
 }
+
+
+
