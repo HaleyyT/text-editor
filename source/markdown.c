@@ -6,6 +6,17 @@
 
 #define SUCCESS 0 
 
+
+struct chunk {
+    char *text;
+    struct chunk *next;
+};
+
+struct document {
+    struct chunk *head;
+    uint64_t version;
+};
+
 // === Init and Free ===
 document *markdown_init(void) {
     document* new_doc = malloc(sizeof(document));
