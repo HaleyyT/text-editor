@@ -51,7 +51,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     }
 
     //If there is no next text, the ptr to next text chunk to NULL
-    chunk *inserted_chunk = malloc(sizeof(chunk));
+    struct chunk *inserted_chunk = malloc(sizeof(struct chunk));
     if (!inserted_chunk) return -1;
 
     inserted_chunk->text = strdup_safe(content);
@@ -69,7 +69,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     }
 
     //If there is next text, link the ptr of next text to previous doc->next
-    chunk* curr = doc->head;
+    struct chunk* curr = doc->head;
     size_t chars_seen = 0;
 
     while (curr){
@@ -84,7 +84,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
             free(curr->text);
             curr->text = before;
 
-            chunk *after_chunk = malloc(sizeof(chunk));
+            struct chunk *after_chunk = malloc(sizeof(struct chunk));
             if (!after_chunk) {
                 free(inserted_chunk->text);
                 free(inserted_chunk);
@@ -102,7 +102,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     }
 
     //traverse through chunks of text and set its tail ptr to our inserted chunk
-    chunk *tail = doc->head;
+    struct chunk *tail = doc->head;
     while (tail && tail->next){
         tail = tail->next;
     }
