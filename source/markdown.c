@@ -30,12 +30,12 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
 }
 
 // === Formatting Commands ===
-int markdown_newline(document *doc, int version, int pos) {
+int markdown_newline(document *doc, size_t version, size_t pos) {
     (void)doc; (void)version; (void)pos;
     return SUCCESS;
 }
 
-int markdown_heading(document *doc, uint64_t version, int level, size_t pos) {
+int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) {
     (void)doc; (void)version; (void)level; (void)pos;
     return SUCCESS;
 }

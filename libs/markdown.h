@@ -10,8 +10,6 @@
  * in detail in the assignment spec.
  */
 
-// Return -1 if the cursor position is invalid
-
 // Initialize and free a document
 document * markdown_init(void);
 void markdown_free(document *doc);
@@ -21,7 +19,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
 int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len);
 
 // === Formatting Commands ===
-int markdown_newline(document *doc, uint64_t version, size_t pos);
+int markdown_newline(document *doc, size_t version, size_t pos);
 int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos);
 int markdown_bold(document *doc, uint64_t version, size_t start, size_t end);
 int markdown_italic(document *doc, uint64_t version, size_t start, size_t end);
