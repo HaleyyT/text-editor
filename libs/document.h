@@ -7,6 +7,7 @@
  * Ensure you DO NOT change the name of document struct.
  */
 
+//Chunk store text and has ptr to taverse to next 
 typedef struct{
     char *text;
     struct chunk *next;
