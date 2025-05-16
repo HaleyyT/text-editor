@@ -22,6 +22,24 @@ void markdown_free(document *doc) {
     free(doc);
 }
 
+char *strdup_safe(const char *s) {
+    size_t len = strlen(s);
+    char *copy = malloc(len + 1);
+    if (copy) {
+        strcpy(copy, s);
+    }
+    return copy;
+}
+
+char *strndup_safe(const char *s, size_t n) {
+    char *copy = malloc(n + 1);
+    if (copy) {
+        strncpy(copy, s, n);
+        copy[n] = '\0';
+    }
+    return copy;
+}
+
 
 // === Edit Commands ===
 int markdown_insert(document *doc, uint64_t version, size_t pos, const char *content) {
@@ -36,7 +54,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     chunk *inserted_chunk = malloc(sizeof(chunk));
     if (!inserted_chunk) return -1;
 
-    inserted_chunk->text = strdup(content);
+    inserted_chunk->text = strdup_safe(content);
     if (!inserted_chunk->text){
         free(inserted_chunk);
         return -1;
@@ -60,8 +78,8 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
             //split if insert in the middle of the chunk
             size_t offset = pos - chars_seen;
 
-            char *before = strndup(curr->text, offset);
-            char *after = strdup(curr->text + offset);
+            char *before = strndup_safe(curr->text, offset);
+            char *after = strdup_safe(curr->text + offset);
 
             free(curr->text);
             curr->text = before;
@@ -84,7 +102,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     }
 
     //traverse through chunks of text and set its tail ptr to our inserted chunk
-    chunk *tail = doc->head;
+    struct chunk *tail = doc->head;
     while (tail && tail->next){
         tail = tail->next;
     }
@@ -161,7 +179,7 @@ void markdown_print(const document *doc, FILE *stream) {
 
 char *markdown_flatten(const document *doc) {
     (void)doc;
-    return strdup("");
+    return strdup_safe("");
 }
 
 // === Versioning ===
