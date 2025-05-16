@@ -9,15 +9,14 @@
  */
 
 //Chunk store text and has ptr to taverse to next 
-typedef struct{
+typedef struct chunk {
     char *text;
     struct chunk *next;
 } chunk;
 
-typedef struct {
+typedef struct document {
     chunk *head;
     uint64_t version;
 } document;
 
-// Functions from here onwards.
 #endif
