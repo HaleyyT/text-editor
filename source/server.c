@@ -1,5 +1,9 @@
 // TODO: server code that manages the document and handles client instructions
+#include <stdio.h>
+
 int main(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
     printf("%s","server start ");
     return 0;
 }
