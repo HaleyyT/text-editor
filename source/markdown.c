@@ -318,6 +318,7 @@ void markdown_increment_version(document *doc) {
     doc->version++;
 }
 
+#ifdef DEBUG_MARKDOWN
 
 int main(void) {
     document *doc = markdown_init();
@@ -329,5 +330,6 @@ int main(void) {
     markdown_free(doc);
     return 0;
 }
+#endif
 
 
