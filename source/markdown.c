@@ -178,17 +178,17 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
             curr = next;
             continue;
         }
+
         size_t curr_len = strlen(curr->text);
+        chars_seen += curr_len;  // ✅ Move this up before any potential free
 
         // Check if delete starts in this chunk
-        if (chars_seen + curr_len > pos) {
-            size_t start = (pos > chars_seen) ? pos - chars_seen : 0;
+        if (chars_seen > pos) {
+            size_t start = (pos > chars_seen - curr_len) ? pos - (chars_seen - curr_len) : 0;
             size_t available = curr_len - start;
             size_t del_len = (available >= to_delete) ? to_delete : available;
 
-            // Shift remaining chars left
             memmove(curr->text + start, curr->text + start + del_len, curr_len - start - del_len + 1);
-
             to_delete -= del_len;
         }
 
@@ -207,10 +207,7 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
             prev = curr;
             curr = curr->next;
         }
-
-        chars_seen += strlen(curr->text);
     }
-
     return 0;
 }
 
@@ -319,6 +316,8 @@ void markdown_increment_version(document *doc) {
 }
 
 #ifdef DEBUG_MARKDOWN
+//gcc -DDEBUG_MARKDOWN markdown.c -o markdown
+
 
 int main(void) {
     document *doc = markdown_init();
