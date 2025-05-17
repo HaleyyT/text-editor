@@ -136,10 +136,84 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     return SUCCESS;
 }
 
-int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
-    (void)doc; (void)version; (void)pos; (void)len;
-    return SUCCESS;
+
+//Helper function: create deep copy of chunks
+//CALLER FREE MEMO
+chunk *deep_copy_chunks(chunk *head){
+    if (!head) return NULL;
+
+    //create a copied version of head to new_head
+    chunk *new_head = malloc(sizeof(chunk));
+    if (!new_head) return NULL;
+
+    new_head->text = strdup_safe(head->text);
+    new_head->next = deep_copy_chunks(head->next);
+    return new_head;
 }
+
+
+int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
+    if (!doc || doc->version != version || len == 0) return -1;
+
+    //Make a staged copy if not exists
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    chunk *curr = doc->staged_head;
+    chunk *prev = NULL;
+    size_t chars_seen = 0;
+    size_t to_delete = len;
+
+    while (curr && to_delete > 0) {
+        if (!curr->text) {
+            chunk *next = curr->next;
+            if (prev){
+                prev->next = next;
+            } else {
+                doc->staged_head = next;
+            }
+            free(curr);
+            curr = next;
+            continue;
+        }
+        size_t curr_len = strlen(curr->text);
+
+        // Check if delete starts in this chunk
+        if (chars_seen + curr_len > pos) {
+            size_t start = (pos > chars_seen) ? pos - chars_seen : 0;
+            size_t available = curr_len - start;
+            size_t del_len = (available >= to_delete) ? to_delete : available;
+
+            // Shift remaining chars left
+            memmove(curr->text + start, curr->text + start + del_len, curr_len - start - del_len + 1);
+
+            to_delete -= del_len;
+        }
+
+        // Remove chunk if now empty
+        if (strlen(curr->text) == 0) {
+            chunk *next = curr->next;
+            free(curr->text);
+            free(curr);
+            if (prev) {
+                prev->next = next;
+            } else {
+                doc->staged_head = next;
+            }
+            curr = next;
+        } else {
+            prev = curr;
+            curr = curr->next;
+        }
+
+        chars_seen += strlen(curr->text);
+    }
+
+    return 0;
+}
+
 
 // === Formatting Commands ===
 int markdown_newline(document *doc, size_t version, size_t pos) {
@@ -244,5 +318,16 @@ void markdown_increment_version(document *doc) {
     doc->version++;
 }
 
+
+int main(void) {
+    document *doc = markdown_init();
+    markdown_insert(doc, 0, 0, "Hello");
+    markdown_increment_version(doc);
+    char *flat = markdown_flatten(doc);
+    printf("%s\n", flat);
+    free(flat);
+    markdown_free(doc);
+    return 0;
+}
 
 

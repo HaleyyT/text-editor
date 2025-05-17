@@ -1,0 +1,26 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     markdown
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _markdown_init, symObjAddr: 0x0, symBinAddr: 0x1000035C8, symSize: 0x68 }
+  - { offsetInCU: 0x42, offset: 0x42, size: 0x8, addend: 0x0, symName: _markdown_init, symObjAddr: 0x0, symBinAddr: 0x1000035C8, symSize: 0x68 }
+  - { offsetInCU: 0x6A, offset: 0x6A, size: 0x8, addend: 0x0, symName: _markdown_free, symObjAddr: 0x68, symBinAddr: 0x100003630, symSize: 0xE0 }
+  - { offsetInCU: 0xD4, offset: 0xD4, size: 0x8, addend: 0x0, symName: _strdup_safe, symObjAddr: 0x148, symBinAddr: 0x100003710, symSize: 0x64 }
+  - { offsetInCU: 0x118, offset: 0x118, size: 0x8, addend: 0x0, symName: _strndup_safe, symObjAddr: 0x1AC, symBinAddr: 0x100003774, symSize: 0x70 }
+  - { offsetInCU: 0x15C, offset: 0x15C, size: 0x8, addend: 0x0, symName: _markdown_insert, symObjAddr: 0x21C, symBinAddr: 0x1000037E4, symSize: 0x314 }
+  - { offsetInCU: 0x249, offset: 0x249, size: 0x8, addend: 0x0, symName: _markdown_delete, symObjAddr: 0x530, symBinAddr: 0x100003AF8, symSize: 0x20 }
+  - { offsetInCU: 0x29B, offset: 0x29B, size: 0x8, addend: 0x0, symName: _markdown_newline, symObjAddr: 0x550, symBinAddr: 0x100003B18, symSize: 0x1C }
+  - { offsetInCU: 0x2DF, offset: 0x2DF, size: 0x8, addend: 0x0, symName: _markdown_heading, symObjAddr: 0x56C, symBinAddr: 0x100003B34, symSize: 0x20 }
+  - { offsetInCU: 0x331, offset: 0x331, size: 0x8, addend: 0x0, symName: _markdown_bold, symObjAddr: 0x58C, symBinAddr: 0x100003B54, symSize: 0x20 }
+  - { offsetInCU: 0x383, offset: 0x383, size: 0x8, addend: 0x0, symName: _markdown_italic, symObjAddr: 0x5AC, symBinAddr: 0x100003B74, symSize: 0x20 }
+  - { offsetInCU: 0x3D5, offset: 0x3D5, size: 0x8, addend: 0x0, symName: _markdown_blockquote, symObjAddr: 0x5CC, symBinAddr: 0x100003B94, symSize: 0x1C }
+  - { offsetInCU: 0x419, offset: 0x419, size: 0x8, addend: 0x0, symName: _markdown_ordered_list, symObjAddr: 0x5E8, symBinAddr: 0x100003BB0, symSize: 0x1C }
+  - { offsetInCU: 0x45D, offset: 0x45D, size: 0x8, addend: 0x0, symName: _markdown_unordered_list, symObjAddr: 0x604, symBinAddr: 0x100003BCC, symSize: 0x1C }
+  - { offsetInCU: 0x4A1, offset: 0x4A1, size: 0x8, addend: 0x0, symName: _markdown_code, symObjAddr: 0x620, symBinAddr: 0x100003BE8, symSize: 0x20 }
+  - { offsetInCU: 0x4F3, offset: 0x4F3, size: 0x8, addend: 0x0, symName: _markdown_horizontal_rule, symObjAddr: 0x640, symBinAddr: 0x100003C08, symSize: 0x1C }
+  - { offsetInCU: 0x537, offset: 0x537, size: 0x8, addend: 0x0, symName: _markdown_link, symObjAddr: 0x65C, symBinAddr: 0x100003C24, symSize: 0x24 }
+  - { offsetInCU: 0x597, offset: 0x597, size: 0x8, addend: 0x0, symName: _markdown_print, symObjAddr: 0x680, symBinAddr: 0x100003C48, symSize: 0x14 }
+  - { offsetInCU: 0x5C9, offset: 0x5C9, size: 0x8, addend: 0x0, symName: _markdown_flatten, symObjAddr: 0x694, symBinAddr: 0x100003C5C, symSize: 0x140 }
+  - { offsetInCU: 0x645, offset: 0x645, size: 0x8, addend: 0x0, symName: _markdown_increment_version, symObjAddr: 0x7D4, symBinAddr: 0x100003D9C, symSize: 0x108 }
+  - { offsetInCU: 0x677, offset: 0x677, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x8DC, symBinAddr: 0x100003EA4, symSize: 0x84 }
+...
