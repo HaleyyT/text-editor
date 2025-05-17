@@ -15,6 +15,7 @@ typedef struct chunk {
 } chunk;
 
 typedef struct document {
+    chunk *staged_head;
     chunk *head;
     uint64_t version;
 } document;

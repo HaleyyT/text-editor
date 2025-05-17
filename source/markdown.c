@@ -63,8 +63,8 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
 
     //Insert at beginning 
     if (pos == 0){
-        inserted_chunk->next = doc->head;
-        doc->head = inserted_chunk;
+        inserted_chunk->next = doc->staged_head;
+        doc->staged_head = inserted_chunk;
         return 0;
     }
 
@@ -184,7 +184,18 @@ char *markdown_flatten(const document *doc) {
 
 // === Versioning ===
 void markdown_increment_version(document *doc) {
-    if (doc) doc->version++;
+    if (!doc || !doc->staged_head) return;
+
+    chunk *tail = doc->staged_head;
+    if (!tail) return;
+
+    while (tail && tail->next){
+        tail = tail->next;
+    }
+    tail->next = doc->head;
+    doc->head = doc->staged_head;
+    doc->staged_head = NULL;
+    doc->version++;
 }
 
 
