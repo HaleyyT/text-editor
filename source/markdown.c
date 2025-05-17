@@ -13,12 +13,32 @@ document *markdown_init(void) {
         return NULL;
     }
     new_doc->head = NULL;
+    new_doc->staged_head = NULL;
     new_doc->version = 0;
     return new_doc;
 }
 
 void markdown_free(document *doc) {
     if (!doc) return;
+
+    //create a chunk ptr - curr 
+    chunk *curr = doc->head;
+    while (curr){
+        chunk *next = curr->next;
+        free(curr->text);
+        free(curr);
+        curr = next;
+    }
+
+    //Use the pointer to traverse through staged_head and free it as well
+    curr = doc->staged_head;
+    while (curr) {
+        chunk *next = curr->next;
+        free(curr->text);
+        free(curr);
+        curr = next;
+    }
+
     free(doc);
 }
 
@@ -69,7 +89,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     }
 
     //If there is next text, link the ptr of next text to previous doc->next
-    chunk* curr = doc->head;
+    chunk* curr = doc->staged_head;
     size_t chars_seen = 0;
 
     while (curr){
@@ -102,7 +122,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     }
 
     //traverse through chunks of text and set its tail ptr to our inserted chunk
-    struct chunk *tail = doc->head;
+    struct chunk *tail = doc->staged_head;
     while (tail && tail->next){
         tail = tail->next;
     }
@@ -110,7 +130,7 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
     if (tail){
         tail->next = inserted_chunk;
     } else{
-        doc->head = inserted_chunk;
+        doc->staged_head = inserted_chunk;
     }
 
     return SUCCESS;
@@ -178,8 +198,24 @@ void markdown_print(const document *doc, FILE *stream) {
 }
 
 char *markdown_flatten(const document *doc) {
-    (void)doc;
-    return strdup_safe("");
+    if (!doc || !doc->head) return strdup_safe("");
+
+    size_t total_len = 0;
+    for (chunk *curr = doc->head; curr != NULL; curr = curr->next){
+        total_len += strlen(curr->text);
+    }
+
+    //If result is empty, add terminating sign 
+    char *res = malloc(total_len + 1);
+    if (!res) return NULL;
+    res[0] = '\0';
+
+    //keep traversing through all the current chunk's text and append to res 
+    for (chunk *curr = doc->head; curr != NULL; curr = curr->next){
+        strcat(res, curr->text);
+    }
+    //return res which is 1 string containing all chunks 
+    return res;
 }
 
 // === Versioning ===
@@ -187,11 +223,21 @@ void markdown_increment_version(document *doc) {
     if (!doc || !doc->staged_head) return;
 
     chunk *tail = doc->staged_head;
-    if (!tail) return;
 
-    while (tail && tail->next){
+    // Check if there's only 1 staged chunk
+    if (!tail->next) {
+        tail->next = doc->head;
+        doc->head = doc->staged_head;
+        doc->staged_head = NULL;
+        doc->version++;
+        return;
+    }
+
+    // Traverse to last chunk in staged
+    while (tail->next) {
         tail = tail->next;
     }
+
     tail->next = doc->head;
     doc->head = doc->staged_head;
     doc->staged_head = NULL;
