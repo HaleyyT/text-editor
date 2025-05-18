@@ -218,7 +218,19 @@ int markdown_newline(document *doc, size_t version, size_t pos) {
 }
 
 int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) {
-    (void)doc; (void)version; (void)level; (void)pos;
+    if (!doc || doc->version != version || level < 1 || level > 6) return -1;
+
+    if (!doc->staged_head){
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    char prefix[8]; // max: 6 "#" + 1 space + 1 null terminator 
+    memset(prefix, '#', level);
+    prefix[level] = ' '; //add space after the '#' level 
+    prefix[level + 1] = '\0'; //add null terminator after space to end the string 
+
+    if (markdown_insert(doc, version, pos, prefix) != 0) return -1;
     return SUCCESS;
 }
 
@@ -367,7 +379,8 @@ int main() {
     markdown_delete(doc, 1, 5, 6);  // should remove " World"
     markdown_increment_version(doc); // ver --> 2
 
-    markdown_bold(doc, 2, 0, 2);
+    //markdown_bold(doc, 2, 0, 2);
+    markdown_heading(doc, 2, 2, 3);
     markdown_increment_version(doc); //ver --> 3
 
     char *result = markdown_flatten(doc);
