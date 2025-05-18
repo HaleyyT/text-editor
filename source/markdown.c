@@ -3,7 +3,6 @@
 #include <string.h>
 
 
-
 #define SUCCESS 0 
 
 // === Init and Free ===
@@ -180,7 +179,7 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
         }
 
         size_t curr_len = strlen(curr->text);
-        chars_seen += curr_len;  // ✅ Move this up before any potential free
+        chars_seen += curr_len;  // Move this up before any potential free
 
         // Check if delete starts in this chunk
         if (chars_seen > pos) {
@@ -297,9 +296,17 @@ void markdown_increment_version(document *doc) {
 
     // Check if there's only 1 staged chunk
     if (!tail->next) {
-        tail->next = doc->head;
+        chunk *old_head = doc->head;
         doc->head = doc->staged_head;
         doc->staged_head = NULL;
+
+        // Free old_head
+        while (old_head) {
+            chunk *next = old_head->next;
+            free(old_head->text);
+            free(old_head);
+            old_head = next;
+        }
         doc->version++;
         return;
     }
@@ -319,13 +326,18 @@ void markdown_increment_version(document *doc) {
 //gcc -DDEBUG_MARKDOWN markdown.c -o markdown
 
 
-int main(void) {
+int main() {
     document *doc = markdown_init();
-    markdown_insert(doc, 0, 0, "Hello");
+    markdown_insert(doc, 0, 0, "Hello World");
     markdown_increment_version(doc);
-    char *flat = markdown_flatten(doc);
-    printf("%s\n", flat);
-    free(flat);
+
+    markdown_delete(doc, 1, 5, 6);  // should remove " World"
+    markdown_increment_version(doc);
+
+    char *result = markdown_flatten(doc);
+    printf("Result: \"%s\"\n", result);
+    free(result);
+
     markdown_free(doc);
     return 0;
 }

@@ -1,0 +1,30 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     markdown
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _markdown_init, symObjAddr: 0x0, symBinAddr: 0x10000173C, symSize: 0x12C }
+  - { offsetInCU: 0x3C, offset: 0x3C, size: 0x8, addend: 0x0, symName: _.str, symObjAddr: 0x2220, symBinAddr: 0x100003A20, symSize: 0x0 }
+  - { offsetInCU: 0x68, offset: 0x68, size: 0x8, addend: 0x0, symName: _.str.1, symObjAddr: 0x2260, symBinAddr: 0x100003A60, symSize: 0x0 }
+  - { offsetInCU: 0x86, offset: 0x86, size: 0x8, addend: 0x0, symName: _.str.2, symObjAddr: 0x2280, symBinAddr: 0x100003A80, symSize: 0x0 }
+  - { offsetInCU: 0x9C, offset: 0x9C, size: 0x8, addend: 0x0, symName: _markdown_init, symObjAddr: 0x0, symBinAddr: 0x10000173C, symSize: 0x12C }
+  - { offsetInCU: 0xC4, offset: 0xC4, size: 0x8, addend: 0x0, symName: _markdown_free, symObjAddr: 0x12C, symBinAddr: 0x100001868, symSize: 0x234 }
+  - { offsetInCU: 0x12E, offset: 0x12E, size: 0x8, addend: 0x0, symName: _strdup_safe, symObjAddr: 0x360, symBinAddr: 0x100001A9C, symSize: 0x60 }
+  - { offsetInCU: 0x172, offset: 0x172, size: 0x8, addend: 0x0, symName: _strndup_safe, symObjAddr: 0x3C0, symBinAddr: 0x100001AFC, symSize: 0xD4 }
+  - { offsetInCU: 0x1B6, offset: 0x1B6, size: 0x8, addend: 0x0, symName: _markdown_insert, symObjAddr: 0x494, symBinAddr: 0x100001BD0, symSize: 0x914 }
+  - { offsetInCU: 0x2AA, offset: 0x2AA, size: 0x8, addend: 0x0, symName: _deep_copy_chunks, symObjAddr: 0xDA8, symBinAddr: 0x1000024E4, symSize: 0x1A4 }
+  - { offsetInCU: 0x2E0, offset: 0x2E0, size: 0x8, addend: 0x0, symName: _markdown_delete, symObjAddr: 0xF4C, symBinAddr: 0x100002688, symSize: 0x7A0 }
+  - { offsetInCU: 0x3FF, offset: 0x3FF, size: 0x8, addend: 0x0, symName: _markdown_newline, symObjAddr: 0x16EC, symBinAddr: 0x100002E28, symSize: 0x1C }
+  - { offsetInCU: 0x443, offset: 0x443, size: 0x8, addend: 0x0, symName: _markdown_heading, symObjAddr: 0x1708, symBinAddr: 0x100002E44, symSize: 0x20 }
+  - { offsetInCU: 0x495, offset: 0x495, size: 0x8, addend: 0x0, symName: _markdown_bold, symObjAddr: 0x1728, symBinAddr: 0x100002E64, symSize: 0x20 }
+  - { offsetInCU: 0x4E7, offset: 0x4E7, size: 0x8, addend: 0x0, symName: _markdown_italic, symObjAddr: 0x1748, symBinAddr: 0x100002E84, symSize: 0x20 }
+  - { offsetInCU: 0x539, offset: 0x539, size: 0x8, addend: 0x0, symName: _markdown_blockquote, symObjAddr: 0x1768, symBinAddr: 0x100002EA4, symSize: 0x1C }
+  - { offsetInCU: 0x57D, offset: 0x57D, size: 0x8, addend: 0x0, symName: _markdown_ordered_list, symObjAddr: 0x1784, symBinAddr: 0x100002EC0, symSize: 0x1C }
+  - { offsetInCU: 0x5C1, offset: 0x5C1, size: 0x8, addend: 0x0, symName: _markdown_unordered_list, symObjAddr: 0x17A0, symBinAddr: 0x100002EDC, symSize: 0x1C }
+  - { offsetInCU: 0x605, offset: 0x605, size: 0x8, addend: 0x0, symName: _markdown_code, symObjAddr: 0x17BC, symBinAddr: 0x100002EF8, symSize: 0x20 }
+  - { offsetInCU: 0x657, offset: 0x657, size: 0x8, addend: 0x0, symName: _markdown_horizontal_rule, symObjAddr: 0x17DC, symBinAddr: 0x100002F18, symSize: 0x1C }
+  - { offsetInCU: 0x69B, offset: 0x69B, size: 0x8, addend: 0x0, symName: _markdown_link, symObjAddr: 0x17F8, symBinAddr: 0x100002F34, symSize: 0x24 }
+  - { offsetInCU: 0x701, offset: 0x701, size: 0x8, addend: 0x0, symName: _markdown_print, symObjAddr: 0x181C, symBinAddr: 0x100002F58, symSize: 0x14 }
+  - { offsetInCU: 0x736, offset: 0x736, size: 0x8, addend: 0x0, symName: _markdown_flatten, symObjAddr: 0x1830, symBinAddr: 0x100002F6C, symSize: 0x350 }
+  - { offsetInCU: 0x7B8, offset: 0x7B8, size: 0x8, addend: 0x0, symName: _markdown_increment_version, symObjAddr: 0x1B80, symBinAddr: 0x1000032BC, symSize: 0x564 }
+  - { offsetInCU: 0x827, offset: 0x827, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x20E4, symBinAddr: 0x100003820, symSize: 0xA0 }
+...
