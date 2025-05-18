@@ -213,9 +213,22 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
 
 // === Formatting Commands ===
 int markdown_newline(document *doc, size_t version, size_t pos) {
-    (void)doc; (void)version; (void)pos;
-    return SUCCESS;
+    if (!doc || doc->version != version) return -1;
+
+    if (!doc->staged_head){
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+    //check valid position within the total length to insert newline 
+    size_t total_len = 0;
+    for (chunk* curr = doc->staged_head; curr; curr = curr->next){
+        total_len += strlen(curr->text);
+    }
+    if (pos > total_len) return -1;
+
+    return markdown_insert(doc, version, pos, "\n");
 }
+
 
 int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) {
     if (!doc || doc->version != version || level < 1 || level > 6) return -1;
@@ -380,6 +393,7 @@ int main() {
     markdown_delete(doc, 1, 0, strlen("Hello, World."));
     markdown_insert(doc, 1, 1, "Foo");
     markdown_insert(doc, 1, 4, "Bar");
+    markdown_newline(doc, 1, 3);
     markdown_increment_version(doc); // v2
 
     char *result = markdown_flatten(doc);
