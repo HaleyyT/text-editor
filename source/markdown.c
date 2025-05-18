@@ -223,7 +223,22 @@ int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) 
 }
 
 int markdown_bold(document *doc, uint64_t version, size_t start, size_t end) {
-    (void)doc; (void)version; (void)start; (void)end;
+    if (!doc || doc->version != version || start >= end) return -1;
+
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    if (markdown_insert(doc, version, end, "**") != 0) {
+        printf("%s", "make bold text fail");
+        return -1;
+    }
+    if (markdown_insert(doc, version, start, "**") != 0) {
+        printf("%s", "make bold text fail");
+        return -1;
+    }
+
     return SUCCESS;
 }
 
@@ -316,7 +331,7 @@ void markdown_increment_version(document *doc) {
         tail = tail->next;
     }
 
-    tail->next = doc->head;
+    //tail->next = doc->head;
     doc->head = doc->staged_head;
     doc->staged_head = NULL;
     doc->version++;
@@ -329,13 +344,16 @@ void markdown_increment_version(document *doc) {
 int main() {
     document *doc = markdown_init();
     markdown_insert(doc, 0, 0, "Hello World");
-    markdown_increment_version(doc);
+    markdown_increment_version(doc); //ver --> 1
 
     markdown_delete(doc, 1, 5, 6);  // should remove " World"
-    markdown_increment_version(doc);
+    markdown_increment_version(doc); // ver --> 2
+
+    markdown_bold(doc, 2, 0, 2);
+    markdown_increment_version(doc); //ver --> 3
 
     char *result = markdown_flatten(doc);
-    printf("Result: \"%s\"\n", result);
+    printf("Result: \"%s\"\n", result); //"**He**llo"
     free(result);
 
     markdown_free(doc);
