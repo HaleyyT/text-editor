@@ -6,11 +6,14 @@ a.out
 server
 client
 markdown 
+*_test
+
 
 # Backup or temporary files
 *~
 *.swp
 .DS_Store
+
 
 # Build output
 /build/
@@ -25,3 +28,7 @@ markdown
 
 # System files
 Thumbs.db
+
+#debug 
+*.dSYM/
+
