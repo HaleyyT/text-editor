@@ -373,20 +373,18 @@ void markdown_increment_version(document *doc) {
 
 int main() {
     document *doc = markdown_init();
-    markdown_insert(doc, 0, 0, "Hello World");
-    markdown_increment_version(doc); //ver --> 1
+    markdown_insert(doc, 0, 0, "Hello, World.");
+    markdown_increment_version(doc); // v1
 
-    markdown_delete(doc, 1, 5, 6);  // should remove " World"
-    markdown_increment_version(doc); // ver --> 2
-
-    //markdown_bold(doc, 2, 0, 2);
-    markdown_heading(doc, 2, 2, 3);
-    markdown_increment_version(doc); //ver --> 3
+    // v1 modifications
+    markdown_delete(doc, 1, 0, strlen("Hello, World."));
+    markdown_insert(doc, 1, 1, "Foo");
+    markdown_insert(doc, 1, 4, "Bar");
+    markdown_increment_version(doc); // v2
 
     char *result = markdown_flatten(doc);
-    printf("Result: \"%s\"\n", result); //"**He**llo"
+    printf("Result: \"%s\"\n", result); // Should print "FooBar"
     free(result);
-
     markdown_free(doc);
     return 0;
 }
