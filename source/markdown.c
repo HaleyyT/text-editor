@@ -254,11 +254,11 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
         }
     }
     // Insert "*" at the end first to avoid shifting start position
-    if (markdown_insert(doc, version, start, "*") != 0) {
+    if (markdown_insert(doc, version, end, "*") != 0) {
         printf("%s", "ITALIC: unable to italicise");
         return -1; 
     }
-    if (markdown_insert(doc, version, end, "*") != 0) {
+    if (markdown_insert(doc, version, start, "*") != 0) {
         printf("%s", "ITALIC: unable to italicise");
         return -1; 
     }
