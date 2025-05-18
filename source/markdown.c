@@ -391,9 +391,9 @@ int main() {
 
     // v1 modifications
     markdown_delete(doc, 1, 0, strlen("Hello, World."));
-    markdown_insert(doc, 1, 1, "Foo");
-    markdown_insert(doc, 1, 4, "Bar");
-    markdown_newline(doc, 1, 3);
+    markdown_insert(doc, 1, 0, "Foo");
+    markdown_insert(doc, 1, 3, "Bar");
+    //markdown_newline(doc, 1, 3);
     markdown_increment_version(doc); // v2
 
     char *result = markdown_flatten(doc);
