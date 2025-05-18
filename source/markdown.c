@@ -342,10 +342,57 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 }
 
 
+//Helper function to retrieve a string presentation of doc in its staged version
+char *flatten_staged(const document *doc) {
+    if (!doc || !doc->staged_head) return strdup_safe("");
+
+    size_t total_len = 0;
+    for (chunk *curr = doc->staged_head; curr != NULL; curr = curr->next) {
+        total_len += strlen(curr->text);
+    }
+
+    char *res = malloc(total_len + 1);
+    if (!res) return NULL;
+    res[0] = '\0';
+
+    for (chunk *curr = doc->staged_head; curr != NULL; curr = curr->next) {
+        strcat(res, curr->text);
+    }
+
+    return res;
+}
+
+
+
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
-    (void)doc; (void)version; (void)pos;
+    if (!doc || doc->version != version) return -1;
+
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    char *str_flat = flatten_staged(doc);
+    if (!str_flat) return -1;
+
+    size_t len = strlen(str_flat);
+    size_t shift = 0;
+
+    for (size_t i = pos; i < len;) {
+        if (markdown_insert(doc, version, i + shift, "- ") != 0){
+            free(str_flat);
+            return -1;
+        }
+        shift += 2;
+
+        //move to the next new line 
+        while (i < len && str_flat[i] != '\n') i++;
+        i++; //pass '\n'
+    }
+    free(str_flat);
     return SUCCESS;
 }
+
 
 int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
     (void)doc; (void)version; (void)start; (void)end;
@@ -430,21 +477,21 @@ void markdown_increment_version(document *doc) {
 
 int main() {
     document *doc = markdown_init();
-    markdown_insert(doc, 0, 0, "Hello, World.");
-    markdown_increment_version(doc); // v1
 
-    // v1 modifications
-    markdown_delete(doc, 1, 0, strlen("Hello, World."));
-    markdown_insert(doc, 1, 0, "Foo");
-    markdown_insert(doc, 1, 3, "Bar");
-    //markdown_newline(doc, 1, 3);
-    markdown_increment_version(doc); // v2
+    // Version 0: insert some content
+    markdown_insert(doc, 0, 0, "Item 1\nItem 2\nItem 3");
+    markdown_increment_version(doc); // Now version 1
+
+    markdown_unordered_list(doc, 1, 0); // Apply unordered list
+    markdown_increment_version(doc); // Commit to version 2
 
     char *result = markdown_flatten(doc);
-    printf("Result: \"%s\"\n", result); // Should print "FooBar"
+    printf("Unordered List Result:\n%s\n", result);
     free(result);
     markdown_free(doc);
     return 0;
+    return 0;
+
 }
 #endif
 
