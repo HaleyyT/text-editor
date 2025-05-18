@@ -295,10 +295,52 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     return SUCCESS;
 }
 
+
 int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
-    (void)doc; (void)version; (void)pos;
-    return SUCCESS;
+    if (!doc || doc->version != version) return -1;
+
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    size_t offset = pos;
+    int index = 1;
+
+    while (1) {
+        char prefix[16];
+        snprintf(prefix, sizeof(prefix), "%d. ", index);  // e.g., "1. ", "2. "
+
+        if (markdown_insert(doc, version, offset, prefix) != 0) return -1;
+
+        offset += strlen(prefix);
+
+        // Search for the next newline
+        chunk *curr = doc->staged_head;
+        size_t chars_seen = 0;
+        int found = 0;
+
+        while (curr) {
+            size_t len = strlen(curr->text);
+            for (size_t i = 0; i < len; ++i) {
+                if (chars_seen + i >= offset && curr->text[i] == '\n') {
+                    offset = chars_seen + i + 1;  // after \n
+                    found = 1;
+                    break;
+                }
+            }
+            if (found) break;
+            chars_seen += len;
+            curr = curr->next;
+        }
+
+        if (!found) break;
+        index++;
+    }
+
+    return 0;
 }
+
 
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     (void)doc; (void)version; (void)pos;
@@ -383,6 +425,8 @@ void markdown_increment_version(document *doc) {
 #ifdef DEBUG_MARKDOWN
 //gcc -DDEBUG_MARKDOWN markdown.c -o markdown
 
+//gcc -DDEBUG_MARKDOWN -g -fsanitize=address -o markdown markdown.c
+//leaks --atExit -- ./markdown
 
 int main() {
     document *doc = markdown_init();
