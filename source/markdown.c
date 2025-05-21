@@ -180,29 +180,43 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
     if (!flat) return -1;
 
     size_t len = strlen(flat);
-    size_t new_len = len + strlen(content);
-    char *new_doc = malloc(new_len + 1);
+    size_t insert_len = strlen(content);
+
+    if (pos > len) {
+        free(flat);
+        return -1;  // Invalid insertion point
+    }
+
+    size_t new_len = len + insert_len;
+    char *new_doc = malloc(new_len + 1);  // +1 for null terminator
     if (!new_doc) {
         free(flat);
         return -1;
     }
 
+    // Copy before insertion point
     memcpy(new_doc, flat, pos);
-    memcpy(new_doc + pos, content, strlen(content));
-    memcpy(new_doc + pos + strlen(content), flat + pos, len - pos + 1);
+
+    // Insert content
+    memcpy(new_doc + pos, content, insert_len);
+
+    // Copy rest of original after insertion point
+    memcpy(new_doc + pos + insert_len, flat + pos, len - pos);
+
+    new_doc[new_len] = '\0';  // manually null terminate
 
     free(flat);
 
-    // rebuild chunk list
-    chunk *new_chunks = malloc(sizeof(chunk));
-    if (!new_chunks) {
+    // Rebuild chunks
+    chunk *new_chunk = malloc(sizeof(chunk));
+    if (!new_chunk) {
         free(new_doc);
         return -1;
     }
-    new_chunks->text = new_doc;
-    new_chunks->next = NULL;
+    new_chunk->text = new_doc;
+    new_chunk->next = NULL;
 
-    // free old staged
+    // Free old staged
     chunk *old = doc->staged_head;
     while (old) {
         chunk *next = old->next;
@@ -210,9 +224,10 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
         free(old);
         old = next;
     }
-    doc->staged_head = new_chunks;
+    doc->staged_head = new_chunk;
     return 0;
 }
+
 
 
 
