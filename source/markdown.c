@@ -378,8 +378,12 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     size_t len = strlen(str_flat);
     size_t shift = 0;
 
+    printf("staged content before list formatting: \n%s\n", str_flat);
+
     for (size_t i = pos; i < len;) {
+        printf("Inserting \"- \" at position: %zu\n", i + shift);
         if (markdown_insert(doc, version, i + shift, "- ") != 0){
+            printf("fail to insert - sign at position: %zu\n", i+shift);
             free(str_flat);
             return -1;
         }
@@ -389,15 +393,39 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
         while (i < len && str_flat[i] != '\n') i++;
         i++; //pass '\n'
     }
+    char *check = flatten_staged(doc);
+    printf("Staged content after list formatting:\n%s\n", check);
+    free(check);
+
     free(str_flat);
     return SUCCESS;
 }
 
 
 int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
-    (void)doc; (void)version; (void)start; (void)end;
+    if (!doc || doc->version != version || start >= end) {
+        printf("%s"," Markdown_code: conditions not met \n");
+        return -1;
+    }
+
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    // Insert opening backtick first
+    if (markdown_insert(doc, version, end, "`") != 0) {
+        printf("%s"," Markdown_code: fail inserting ' at end \n");
+        return -1;
+    }
+    if (markdown_insert(doc, version, start, "`") != 0) {
+        printf("%s"," Markdown_code: fail inserting ' at start \n");
+        return -1;
+    }
     return SUCCESS;
 }
+
+
 
 int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
     (void)doc; (void)version; (void)pos;
@@ -439,31 +467,16 @@ char *markdown_flatten(const document *doc) {
 void markdown_increment_version(document *doc) {
     if (!doc || !doc->staged_head) return;
 
-    chunk *tail = doc->staged_head;
-
-    // Check if there's only 1 staged chunk
-    if (!tail->next) {
-        chunk *old_head = doc->head;
-        doc->head = doc->staged_head;
-        doc->staged_head = NULL;
-
-        // Free old_head
-        while (old_head) {
-            chunk *next = old_head->next;
-            free(old_head->text);
-            free(old_head);
-            old_head = next;
-        }
-        doc->version++;
-        return;
+    // Free the old committed content
+    chunk *old = doc->head;
+    while (old) {
+        chunk *next = old->next;
+        free(old->text);
+        free(old);
+        old = next;
     }
 
-    // Traverse to last chunk in staged
-    while (tail->next) {
-        tail = tail->next;
-    }
-
-    //tail->next = doc->head;
+    // Replace head with staged version
     doc->head = doc->staged_head;
     doc->staged_head = NULL;
     doc->version++;
@@ -478,20 +491,46 @@ void markdown_increment_version(document *doc) {
 int main() {
     document *doc = markdown_init();
 
-    // Version 0: insert some content
-    markdown_insert(doc, 0, 0, "Item 1\nItem 2\nItem 3");
-    markdown_increment_version(doc); // Now version 1
+    // Version 0: Insert list text
+    markdown_insert(doc, 0, 0, "List item\n");
+    markdown_increment_version(doc); // Version 1
 
-    markdown_unordered_list(doc, 1, 0); // Apply unordered list
-    markdown_increment_version(doc); // Commit to version 2
+    // Version 1: Convert to unordered list
+    markdown_unordered_list(doc, 1, 0);
+    markdown_increment_version(doc); // Version 2
 
+    // Version 2: Add newline after list
+    markdown_newline(doc, 2, strlen("- List item"));
+    markdown_increment_version(doc); // Version 3
+
+    // v3: Insert code snippet
+    char *staged3 = flatten_staged(doc);
+    size_t insert_pos = strlen(staged3);
+    free(staged3);
+    markdown_insert(doc, 3, insert_pos, "x = 5;");
+    markdown_increment_version(doc); // version 4
+
+    //compute range BEFORE incrementing again
+    char *staged4 = flatten_staged(doc);
+    size_t start = strlen("- List item\n\n");
+    size_t end = strlen(staged4);  // end of "x = 5;"
+    printf("DEBUG code wrap range: start=%zu, end=%zu\n", start, end);
+    free(staged4);
+
+    // v4: Add backticks
+    markdown_code(doc, 4, start, end);
+    markdown_increment_version(doc); // version 5
+
+
+    // Final: Flatten and print
     char *result = markdown_flatten(doc);
-    printf("Unordered List Result:\n%s\n", result);
+    printf("Final Output:\n%s\n", result);  // Expect:
+    // - List item
+    // `x = 5;`
     free(result);
     markdown_free(doc);
     return 0;
-    return 0;
-
 }
 #endif
+
 
