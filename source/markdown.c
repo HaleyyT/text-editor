@@ -491,6 +491,28 @@ void markdown_increment_version(document *doc) {
 int main() {
     document *doc = markdown_init();
 
+    // v0: Insert original content
+    markdown_insert(doc, 0, 0, "Hello, World.");
+    markdown_increment_version(doc);  // → v1
+
+    // v1: delete everything
+    markdown_delete(doc, 1, 0, strlen("Hello, World."));
+
+    // RIGHT TO LEFT insertions (so they don’t shift each other)
+    markdown_insert(doc, 1, 1, "Foo");   // insert Foo at pos 1
+    markdown_insert(doc, 1, 4, "Bar");   // insert Bar at pos 4 (after Foo)
+
+    markdown_increment_version(doc);    // → v2
+
+    // Check result
+    char* str = markdown_flatten(doc);
+    printf("Result: \"%s\"\n", str);  // Should print FooBar
+    free(str);
+    markdown_free(doc);
+    return 0;
+    /*
+    document *doc = markdown_init();
+
     // Version 0: Insert list text
     markdown_insert(doc, 0, 0, "List item\n");
     markdown_increment_version(doc); // Version 1
@@ -530,6 +552,8 @@ int main() {
     free(result);
     markdown_free(doc);
     return 0;
+    */
+
 }
 #endif
 
