@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-
+static char *shared_flat = NULL;
 #define SUCCESS 0 
 
 // === Init and Free ===
@@ -96,61 +96,54 @@ chunk *deep_copy_chunks(chunk *head) {
 int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
     if (!doc || doc->version != version || len == 0) return -1;
 
-    //Make a staged copy if not exists
-    if (!doc->staged_head) {
-        doc->staged_head = deep_copy_chunks(doc->head);
-        if (!doc->staged_head) return -1;
+    // On first modification, prepare shared_flat
+    if (!shared_flat) {
+        char *base = markdown_flatten(doc);
+        if (!base) return -1;
+        shared_flat = strdup_safe(base);
+        free(base);
+        if (!shared_flat) return -1;
     }
 
+    size_t total_len = strlen(shared_flat);
+    if (pos >= total_len) return -1;
+
+    size_t actual_len = (pos + len > total_len) ? total_len - pos : len;
+    size_t new_len = total_len - actual_len;
+
+    char *new_flat = malloc(new_len + 1);
+    if (!new_flat) return -1;
+
+    memcpy(new_flat, shared_flat, pos);                         // copy before delete range
+    memcpy(new_flat + pos, shared_flat + pos + actual_len, total_len - pos - actual_len); // after delete
+    new_flat[new_len] = '\0';
+
+    free(shared_flat);
+    shared_flat = new_flat;
+
+    // Rebuild staged_head
+    chunk *new_chunk = malloc(sizeof(chunk));
+    if (!new_chunk) return -1;
+    new_chunk->text = strdup_safe(shared_flat);
+    if (!new_chunk->text) {
+        free(new_chunk);
+        return -1;
+    }
+    new_chunk->next = NULL;
+
+    // Free old staged_head
     chunk *curr = doc->staged_head;
-    chunk *prev = NULL;
-    size_t chars_seen = 0;
-    size_t to_delete = len;
-
-    while (curr && to_delete > 0) {
-        if (!curr->text) {
-            chunk *next = curr->next;
-            if (prev){
-                prev->next = next;
-            } else {
-                doc->staged_head = next;
-            }
-            free(curr);
-            curr = next;
-            continue;
-        }
-
-        size_t curr_len = strlen(curr->text);
-        chars_seen += curr_len;  // Move this up before any potential free
-
-        // Check if delete starts in this chunk
-        if (chars_seen > pos) {
-            size_t start = (pos > chars_seen - curr_len) ? pos - (chars_seen - curr_len) : 0;
-            size_t available = curr_len - start;
-            size_t del_len = (available >= to_delete) ? to_delete : available;
-
-            memmove(curr->text + start, curr->text + start + del_len, curr_len - start - del_len + 1);
-            to_delete -= del_len;
-        }
-
-        // Remove chunk if now empty
-        if (strlen(curr->text) == 0) {
-            chunk *next = curr->next;
-            free(curr->text);
-            free(curr);
-            if (prev) {
-                prev->next = next;
-            } else {
-                doc->staged_head = next;
-            }
-            curr = next;
-        } else {
-            prev = curr;
-            curr = curr->next;
-        }
+    while (curr) {
+        chunk *next = curr->next;
+        free(curr->text);
+        free(curr);
+        curr = next;
     }
+
+    doc->staged_head = new_chunk;
     return 0;
 }
+
 
 
 
@@ -175,55 +168,57 @@ char *flatten_staged(const document *doc) {
 }
 
 
-int apply_flat_insert(document *doc, size_t pos, const char *content) {
-    char *flat = flatten_staged(doc);
-    if (!flat) return -1;
 
-    size_t len = strlen(flat);
+int apply_flat_insert(document *doc, size_t pos, const char *content) {
+    if (!doc || !content) return -1;
+
+    // Initialize shared_flat if not already done
+    if (!shared_flat) {
+        char *base = markdown_flatten(doc);
+        if (!base) return -1;
+        shared_flat = strdup_safe(base);
+        free(base);
+        if (!shared_flat) return -1;
+    }
+
+    size_t len = strlen(shared_flat);
     size_t insert_len = strlen(content);
 
-    if (pos > len) {
-        free(flat);
-        return -1;  // Invalid insertion point
-    }
+    if (pos > len) return -1;
 
     size_t new_len = len + insert_len;
-    char *new_doc = malloc(new_len + 1);  // +1 for null terminator
-    if (!new_doc) {
-        free(flat);
-        return -1;
-    }
+    char *new_doc = malloc(new_len + 1);
+    if (!new_doc) return -1;
 
-    // Copy before insertion point
-    memcpy(new_doc, flat, pos);
-
-    // Insert content
+    // Apply insertion
+    memcpy(new_doc, shared_flat, pos);
     memcpy(new_doc + pos, content, insert_len);
+    memcpy(new_doc + pos + insert_len, shared_flat + pos, len - pos);
+    new_doc[new_len] = '\0';
 
-    // Copy rest of original after insertion point
-    memcpy(new_doc + pos + insert_len, flat + pos, len - pos);
+    // Update shared_flat
+    free(shared_flat);
+    shared_flat = new_doc;
 
-    new_doc[new_len] = '\0';  // manually null terminate
-
-    free(flat);
-
-    // Rebuild chunks
+    // Rebuild staged_head from updated flat string
     chunk *new_chunk = malloc(sizeof(chunk));
-    if (!new_chunk) {
-        free(new_doc);
+    if (!new_chunk) return -1;
+    new_chunk->text = strdup_safe(shared_flat);
+    if (!new_chunk->text) {
+        free(new_chunk);
         return -1;
     }
-    new_chunk->text = new_doc;
     new_chunk->next = NULL;
 
-    // Free old staged
-    chunk *old = doc->staged_head;
-    while (old) {
-        chunk *next = old->next;
-        free(old->text);
-        free(old);
-        old = next;
+    // Free old staged_head
+    chunk *curr = doc->staged_head;
+    while (curr) {
+        chunk *next = curr->next;
+        free(curr->text);
+        free(curr);
+        curr = next;
     }
+
     doc->staged_head = new_chunk;
     return 0;
 }
@@ -231,123 +226,20 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
 
 
 
+
 // === Edit Commands ===
 int markdown_insert(document *doc, uint64_t version, size_t pos, const char *content) {
-    if (!doc || !content) return -1;
+    if (!doc || !content || doc->version != version) return -1;
 
     // Ensure staged version is ready
     if (!doc->staged_head) {
         doc->staged_head = deep_copy_chunks(doc->head);
-        if (!doc->staged_head) {
-            //printf("%s", "markdown_insert: Fail to deep copy head");
-            return -1;
-        }
+        if (!doc->staged_head) return -1;
     }
 
     return apply_flat_insert(doc, pos, content);
-
-    char *debug_before = flatten_staged(doc);
-    printf("[DEBUG before insert] staged = %s\n", debug_before);
-    free(debug_before);
-
-    printf("[DEBUG insert] Inserting \"%s\" at pos %zu for version %llu\n", content, pos, version);
-
-    //link the ptr of the specific version document to the text chunk
-    if (doc->version != version){
-        return -1;
-    }
-
-    //If there is no next text, the ptr to next text chunk to NULL
-    chunk *inserted_chunk = malloc(sizeof(chunk));
-    if (!inserted_chunk) return -1;
-
-    inserted_chunk->text = strdup_safe(content);
-    if (!inserted_chunk->text){
-        free(inserted_chunk);
-        return -1;
-    }
-    inserted_chunk->next = NULL;
-
-    //Insert at beginning 
-    if (pos == 0){
-        inserted_chunk->next = doc->staged_head;
-        doc->staged_head = inserted_chunk;
-
-        char* debug = flatten_staged(doc);
-        printf("[DEBUG markdown_insert] after insert at pos %zu: %s\n", pos, debug);
-        free(debug);
-        return SUCCESS;
-    }
-
-    //If there is next text, link the ptr of next text to previous doc->next
-    chunk* curr = doc->staged_head;
-    size_t chars_seen = 0;
-
-    while (curr){
-        size_t curr_len = strlen(curr->text);
-        if (chars_seen + curr_len >= pos) {
-            //split if insert in the middle of the chunk
-            size_t offset = pos - chars_seen;
-
-            char *before = strndup_safe(curr->text, offset);
-            char *after = strdup_safe(curr->text + offset);
-
-            free(curr->text);
-            curr->text = before;
-
-            chunk *after_chunk = malloc(sizeof(chunk));
-            if (!after_chunk) {
-                free(inserted_chunk->text);
-                free(inserted_chunk);
-                return -1;
-            }
-            after_chunk->text = after;
-            after_chunk->next = curr->next;
-
-            inserted_chunk->next = after_chunk;
-            curr->next = inserted_chunk;
-
-            char* debug = flatten_staged(doc);
-            printf("[DEBUG markdown_insert] after insert at pos %zu: %s\n", pos, debug);
-            free(debug);
-            return 0;
-        }
-        chars_seen += curr_len;
-        curr = curr->next;
-    }
-
-    //traverse through chunks of text and set its tail ptr to our inserted chunk
-        // Fallback: if pos == total length, append to end
-    size_t total_len = 0;
-    chunk *temp = doc->staged_head;
-    while (temp) {
-        total_len += strlen(temp->text);
-        temp = temp->next;
-    }
-
-    if (pos == total_len) {
-        chunk *tail = doc->staged_head;
-        if (!tail) {
-            doc->staged_head = inserted_chunk;
-        } else {
-            while (tail->next) {
-                tail = tail->next;
-            }
-            tail->next = inserted_chunk;
-        }
-
-        char* debug = flatten_staged(doc);
-        printf("[DEBUG markdown_insert] after insert at pos %zu: %s\n", pos, debug);
-        free(debug);
-        return SUCCESS;
-    }
-
-    // Invalid position (past end of document)
-    free(inserted_chunk->text);
-    free(inserted_chunk);
-    return -1;
-
 }
+
 
 
 // === Formatting Commands ===
@@ -587,7 +479,6 @@ void markdown_increment_version(document *doc) {
         printf("INC_VERSION: Nothing to commit\n");
         return;
     }
-
     printf("INC_VERSION: Committing staged to head\n");
 
     // Free the old committed content
@@ -602,6 +493,11 @@ void markdown_increment_version(document *doc) {
     doc->head = doc->staged_head;
     doc->staged_head = NULL;
     doc->version++;
+
+    if (shared_flat) {
+        free(shared_flat);
+        shared_flat = NULL;
+    }
 }
 
 #ifdef DEBUG_MARKDOWN
@@ -615,21 +511,22 @@ int main() {
 
     // v0: Insert original content
     markdown_insert(doc, 0, 0, "Hello, World.");
-    markdown_increment_version(doc);  // → v1
+    markdown_increment_version(doc);  // now v1
 
     // v1: delete everything
     markdown_delete(doc, 1, 0, strlen("Hello, World."));
 
-    // insert Foo at pos 0, then Bar at pos 3
+    // insert Foo at pos 0
     markdown_insert(doc, 1, 0, "Foo");
+
+    // insert Bar at pos 3 (after Foo)
     markdown_insert(doc, 1, 3, "Bar");
 
-    markdown_increment_version(doc);    // → v2
+    markdown_increment_version(doc);  // now v2
 
-    // Check result
-    char* str = markdown_flatten(doc);
-    printf("Result: \"%s\"\n", str);  // Should print FooBar
-    free(str);
+    char* result = markdown_flatten(doc);
+    printf("Result: \"%s\"\n", result);  // Expect: FooBar
+    free(result);
     markdown_free(doc);
     return 0;
 
