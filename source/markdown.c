@@ -9,6 +9,18 @@ static char *base_flat = NULL;
 static uint64_t flat_version = (uint64_t)(-1); 
 #define SUCCESS 0 
 
+
+typedef enum { EDIT_INSERT, EDIT_DELETE } edit_type;
+
+typedef struct edit {
+    edit_type type;
+    size_t pos;
+    size_t len;      // for delete
+    char *text;      // for insert
+    struct edit *next;
+} edit;
+
+
 // === Init and Free ===
 document *markdown_init(void) {
     document* new_doc = malloc(sizeof(document));
