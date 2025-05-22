@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static edit *edit_queue = NULL;
+
 static char *shared_flat = NULL;
 static char *base_flat = NULL; 
 static uint64_t flat_version = (uint64_t)(-1); 
@@ -137,8 +139,7 @@ void ensure_shared_flat_initialized(document *doc) {
 }
 
 
-
-
+/*
 
 int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
     if (!doc || doc->version != version || len == 0) return -1;
@@ -185,8 +186,7 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
     doc->staged_head = new_chunk;
     return 0;
 }
-
-
+*/
 
 
 //Helper function to retrieve a string presentation of doc in its staged version
@@ -268,23 +268,17 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
 
 // === Edit Commands ===
 int markdown_insert(document *doc, uint64_t version, size_t pos, const char *content) {
-    if (!doc || !content || doc->version != version) return -1;
+    if (!doc || doc->version != version || !content) return -1;
 
-    // Initialize base_flat and shared_flat ONCE per version
-    ensure_shared_flat_initialized(doc);
-    if (!shared_flat) {
-        printf("[DEBUG markdown_insert] shared_flat is NULL after initialization\n");
-        return -1;
-
-    }
-
-    printf("[DEBUG markdown_insert] inserting \"%s\" at pos %zu\n", content, pos);
-
-    int result = apply_flat_insert(doc, pos, content);
-
-    printf("[DEBUG markdown_insert] shared_flat after = \"%s\"\n", shared_flat);
-
-    return result;
+    edit *e = malloc(sizeof(edit));
+    if (!e) return -1;
+    e->type = EDIT_INSERT;
+    e->pos = pos;
+    e->text = strdup_safe(content);
+    e->len = 0;
+    e->next = edit_queue;
+    edit_queue = e;
+    return 0;
 }
 
 
@@ -345,6 +339,20 @@ int markdown_bold(document *doc, uint64_t version, size_t start, size_t end) {
     return SUCCESS;
 }
 
+
+int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
+    if (!doc || doc->version != version || len == 0) return -1;
+
+    edit *e = malloc(sizeof(edit));
+    if (!e) return -1;
+    e->type = EDIT_DELETE;
+    e->pos = pos;
+    e->len = len;
+    e->text = NULL;
+    e->next = edit_queue;
+    edit_queue = e;
+    return 0;
+}
 
 int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
     if (!doc || doc->version != version || start >= end) return -1;
@@ -523,13 +531,103 @@ char *markdown_flatten(const document *doc) {
 
 
 // === Versioning ===
+int compare_insert(const void *a, const void *b) {
+    const edit *ea = *(const edit **)a;
+    const edit *eb = *(const edit **)b;
+    return (int)(ea->pos - eb->pos);
+}
+
+int compare_delete(const void *a, const void *b) {
+    const edit *ea = *(const edit **)a;
+    const edit *eb = *(const edit **)b;
+    return (int)(eb->pos - ea->pos);  // reverse order
+}
+// Helper: count edits
+static int count_edits(edit *e) {
+    int count = 0;
+    while (e) { count++; e = e->next; }
+    return count;
+}
+
+// Apply all edits
 void markdown_increment_version(document *doc) {
-    if (!doc || !doc->staged_head) {
-        printf("INC_VERSION: Nothing to commit\n");
-        return;
-    }
+    if (!doc) return;
 
     printf("INC_VERSION: Committing staged to head\n");
+
+    // Snapshot base
+    if (base_flat) free(base_flat);
+    base_flat = markdown_flatten(doc);
+    if (!base_flat) return;
+
+    // --- Apply deletes (already OK) ---
+    if (shared_flat) free(shared_flat);
+    shared_flat = strdup_safe(base_flat);
+
+    // Apply deletes in reverse order
+    edit *curr = edit_queue;
+    while (curr) {
+        if (curr->type == EDIT_DELETE) {
+            size_t total_len = strlen(shared_flat);
+            if (curr->pos >= total_len) {
+                curr = curr->next;
+                continue;
+            }
+
+            size_t actual_len = curr->len;
+            if (curr->pos + actual_len > total_len)
+                actual_len = total_len - curr->pos;
+
+            memmove(shared_flat + curr->pos, shared_flat + curr->pos + actual_len, total_len - curr->pos - actual_len + 1);
+        }
+        curr = curr->next;
+    }
+
+    // --- Collect inserts into array ---
+    int n = count_edits(edit_queue);
+    edit **insert_edits = malloc(n * sizeof(edit*));
+    int idx = 0;
+    curr = edit_queue;
+    while (curr) {
+        if (curr->type == EDIT_INSERT)
+            insert_edits[idx++] = curr;
+        curr = curr->next;
+    }
+
+    // Sort insert_edits by .pos ascending
+    for (int i = 0; i < idx - 1; i++) {
+        for (int j = i + 1; j < idx; j++) {
+            if (insert_edits[i]->pos > insert_edits[j]->pos) {
+                edit *tmp = insert_edits[i];
+                insert_edits[i] = insert_edits[j];
+                insert_edits[j] = tmp;
+            }
+        }
+    }
+
+    // Apply insertions with shifting offset
+    size_t offset = 0;
+    for (int i = 0; i < idx; i++) {
+        edit *e = insert_edits[i];
+        size_t insert_len = strlen(e->text);
+        size_t old_len = strlen(shared_flat);
+        if (e->pos + offset > old_len) e->pos = old_len - offset;
+
+        char *new_flat = malloc(old_len + insert_len + 1);
+        memcpy(new_flat, shared_flat, e->pos + offset);
+        memcpy(new_flat + e->pos + offset, e->text, insert_len);
+        strcpy(new_flat + e->pos + offset + insert_len, shared_flat + e->pos + offset);
+        free(shared_flat);
+        shared_flat = new_flat;
+        offset += insert_len;
+    }
+
+    free(insert_edits);
+
+    // Rebuild head
+    chunk *new_chunk = malloc(sizeof(chunk));
+    new_chunk->text = strdup_safe(shared_flat);
+    new_chunk->next = NULL;
 
     chunk *old = doc->head;
     while (old) {
@@ -538,17 +636,18 @@ void markdown_increment_version(document *doc) {
         free(old);
         old = next;
     }
+    doc->head = new_chunk;
 
-    doc->head = doc->staged_head;
-    doc->staged_head = NULL;
+    // Clear edit queue
+    while (edit_queue) {
+        edit *next = edit_queue->next;
+        if (edit_queue->text) free(edit_queue->text);
+        free(edit_queue);
+        edit_queue = next;
+    }
+
     doc->version++;
-
-    if (shared_flat) { free(shared_flat); shared_flat = NULL; }
-    if (base_flat)   { free(base_flat);   base_flat = NULL; }
-    flat_version = (uint64_t)(-1);  // reset version tracker
 }
-
-
 
 
 
@@ -578,11 +677,11 @@ int main() {
     printf("Deleted 'Hello, World.' in v1\n");
 
     // Step 4: Insert "Bar" at pos 2 (in now-empty doc, will be queued)
-    markdown_insert(doc, 1, 0, "Bar");
+    markdown_insert(doc, 1, 2, "Bar");
     printf("Inserted 'Bar' at pos 2 in v1\n");
 
     // Step 5: Insert "Foo" at pos 1
-    markdown_insert(doc, 1, 0, "Foo");
+    markdown_insert(doc, 1, 1, "Foo");
     printf("Inserted 'Foo' at pos 1 in v1\n");
 
     // Step 6: View v1 output (before committing)
