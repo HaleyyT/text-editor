@@ -2,13 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static edit *edit_queue = NULL;
-
-static char *shared_flat = NULL;
-static char *base_flat = NULL; 
-static uint64_t flat_version = (uint64_t)(-1); 
-#define SUCCESS 0 
-
 
 typedef enum { EDIT_INSERT, EDIT_DELETE } edit_type;
 
@@ -19,6 +12,14 @@ typedef struct edit {
     char *text;      // for insert
     struct edit *next;
 } edit;
+
+static edit *edit_queue = NULL;
+
+static char *shared_flat = NULL;
+static char *base_flat = NULL; 
+static uint64_t flat_version = (uint64_t)(-1); 
+#define SUCCESS 0 
+
 
 
 // === Init and Free ===
