@@ -480,15 +480,33 @@ int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
 }
 
 
-
 int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
-    (void)doc; (void)version; (void)pos;
-    return SUCCESS;
+    if (!doc || doc->version != version) return -1;
+    return markdown_insert(doc, version, pos, "---\n");
 }
 
+
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
-    (void)doc; (void)version; (void)start; (void)end; (void)url;
-    return SUCCESS;
+    if (!doc || doc->version != version || start >= end || !url) return -1;
+
+    char *suffix = malloc(strlen(url) + 2 + 1); // ")" + null terminator
+    if (!suffix) return -1;
+    sprintf(suffix, ")");
+
+    char *middle = strdup_safe(url);
+    if (!middle) { free(suffix); return -1; }
+
+    char *prefix = strdup_safe("](");
+    if (!prefix) { free(suffix); free(middle); return -1; }
+
+    // Insert in reverse order to preserve positions
+    markdown_insert(doc, version, end, prefix);             // ](
+    markdown_insert(doc, version, end + strlen(prefix), middle);  // url
+    markdown_insert(doc, version, end + strlen(prefix) + strlen(middle), suffix); // )
+
+    markdown_insert(doc, version, start, "["); // [
+
+    return 0;
 }
 
 // === Utilities ===
@@ -649,42 +667,17 @@ void markdown_increment_version(document *doc) {
 int main() {
     document *doc = markdown_init();
 
-    // Step 1: Insert initial text into version 0
-    markdown_insert(doc, 0, 0, "Hello, World.");
-    printf("Inserted initial text 'Hello, World.'\n");
+    // Version 0: Insert text
+    markdown_insert(doc, 0, 0, "Above\nBelow");
+    markdown_increment_version(doc); // -> version 1
 
-    char *debug_staged = flatten_staged(doc);
-    printf("[DEBUG main] staged before commit v0 = \"%s\"\n", debug_staged);
-    free(debug_staged);
-    // Step 2: Commit version 0 → version 1
-    markdown_increment_version(doc);  // doc->version == 1
-    printf("Incremented to v1\n");
+    // Version 1: Insert horizontal rule between lines
+    markdown_horizontal_rule(doc, 1, 6); 
+    markdown_increment_version(doc);    
 
-    // Step 3: Delete entire content in version 1
-    markdown_delete(doc, 1, 0, strlen("Hello, World."));
-    printf("Deleted 'Hello, World.' in v1\n");
-
-    // Step 4: Insert "Bar" at pos 2 (in now-empty doc, will be queued)
-    markdown_insert(doc, 1, 2, "Bar");
-    printf("Inserted 'Bar' at pos 2 in v1\n");
-
-    // Step 5: Insert "Foo" at pos 1
-    markdown_insert(doc, 1, 1, "Foo");
-    printf("Inserted 'Foo' at pos 1 in v1\n");
-
-    // Step 6: View v1 output (before committing)
-    char *v1_output = flatten_staged(doc);
-    printf("Your v1 Output: %s\n", v1_output);
-    free(v1_output);
-
-    // Step 7: Commit version 1 → version 2
-    markdown_increment_version(doc);
-    printf("Incremented to v2\n");
-
-    // Step 8: View final output from v2
-    char *final_output = markdown_flatten(doc);
-    printf("Your v2 Output: %s\n", final_output);
-    free(final_output);
+    char *out = markdown_flatten(doc);
+    printf("Horizontal Rule Output:\n%s\n", out);
+    free(out);
 
     markdown_free(doc);
     return 0;
