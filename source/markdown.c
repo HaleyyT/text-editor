@@ -424,7 +424,7 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     size_t shift = 0;
     int index = 1;
 
-    // First item
+    // First line prefix
     char prefix[16];
     snprintf(prefix, sizeof(prefix), "%d. ", index++);
     if (markdown_insert(doc, version, pos, prefix) != 0) {
@@ -433,10 +433,9 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     }
     shift += strlen(prefix);
 
-    // Subsequent lines
     for (size_t i = pos; i < len; ++i) {
         if (flat[i] == '\n') {
-            snprintf(prefix, sizeof(prefix), "%d. ", index);
+            snprintf(prefix, sizeof(prefix), "%d. ", index++);
             size_t insert_pos = i + 1 + shift;
             if (markdown_insert(doc, version, insert_pos, prefix) != 0) {
                 free(flat);
@@ -444,12 +443,12 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
             }
             shift += strlen(prefix);
         }
-        index += 1;
     }
 
     free(flat);
     return 0;
 }
+
 
 
 
