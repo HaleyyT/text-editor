@@ -364,56 +364,94 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
     return SUCCESS;
 }
 
+
+
+
 int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
-    (void)doc; (void)version; (void)pos;
+    if (!doc || doc->version != version) return -1;
+
+    // Ensure base_flat and shared_flat are initialized
+    ensure_shared_flat_initialized(doc);
+
+    if (!base_flat) {
+        printf("[DEBUG blockquote] base_flat is NULL\n");
+        return -1;
+    }
+
+    // Make a local copy of base_flat to work with
+    char *flat = strdup_safe(base_flat);
+    if (!flat) return -1;
+
+    size_t len = strlen(flat);
+    size_t shift = 0;
+
+    // Insert "> " at the start of the specified position
+    if (markdown_insert(doc, version, pos, "> ") != 0) {
+        printf("[DEBUG blockquote] Failed to insert at initial pos %zu\n", pos);
+        free(flat);
+        return -1;
+    }
+    printf("[DEBUG blockquote] Inserted '> ' at pos %zu\n", pos);
+
+    // Traverse the original base_flat and insert "> " after each newline
+    for (size_t i = pos; i < len; ++i) {
+        if (flat[i] == '\n') {
+            size_t insert_pos = i  + 1;
+            printf("[DEBUG blockquote] Inserting '> ' at pos %zu\n", insert_pos);
+            if (markdown_insert(doc, version, insert_pos, "> ") != 0) {
+                printf("[DEBUG blockquote] Failed to insert '> ' after newline at pos %zu\n", insert_pos);
+                free(flat);
+                return -1;
+            }
+            //shift += 2;
+        }
+    }
+
+    free(flat);
     return SUCCESS;
 }
+
+
 
 
 int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    if (!doc->staged_head) {
-        doc->staged_head = deep_copy_chunks(doc->head);
-        if (!doc->staged_head) return -1;
-    }
+    char *flat = flatten_staged(doc);
+    if (!flat) return -1;
 
-    size_t offset = pos;
+    size_t len = strlen(flat);
+    size_t shift = 0;
     int index = 1;
 
-    while (1) {
-        char prefix[16];
-        snprintf(prefix, sizeof(prefix), "%d. ", index);  // e.g., "1. ", "2. "
+    // First item
+    char prefix[16];
+    snprintf(prefix, sizeof(prefix), "%d. ", index++);
+    if (markdown_insert(doc, version, pos, prefix) != 0) {
+        free(flat);
+        return -1;
+    }
+    shift += strlen(prefix);
 
-        if (markdown_insert(doc, version, offset, prefix) != 0) return -1;
-
-        offset += strlen(prefix);
-
-        // Search for the next newline
-        chunk *curr = doc->staged_head;
-        size_t chars_seen = 0;
-        int found = 0;
-
-        while (curr) {
-            size_t len = strlen(curr->text);
-            for (size_t i = 0; i < len; ++i) {
-                if (chars_seen + i >= offset && curr->text[i] == '\n') {
-                    offset = chars_seen + i + 1;  // after \n
-                    found = 1;
-                    break;
-                }
+    // Subsequent lines
+    for (size_t i = pos; i < len; ++i) {
+        if (flat[i] == '\n') {
+            snprintf(prefix, sizeof(prefix), "%d. ", index++);
+            size_t insert_pos = i + 1 + shift;
+            if (markdown_insert(doc, version, insert_pos, prefix) != 0) {
+                free(flat);
+                return -1;
             }
-            if (found) break;
-            chars_seen += len;
-            curr = curr->next;
+            shift += strlen(prefix);
         }
-
-        if (!found) break;
-        index++;
     }
 
+    free(flat);
     return 0;
 }
+
+
+
 
 
 
@@ -658,29 +696,42 @@ void markdown_increment_version(document *doc) {
 
 
 #ifdef DEBUG_MARKDOWN
-//gcc -DDEBUG_MARKDOWN markdown.c -o markdown
+    //gcc -DDEBUG_MARKDOWN markdown.c -o markdown
 
-//gcc -DDEBUG_MARKDOWN -g -fsanitize=address -o markdown markdown.c
-//leaks --atExit -- ./markdown
+    //gcc -DDEBUG_MARKDOWN -g -fsanitize=address -o markdown markdown.c
+    //leaks --atExit -- ./markdown
 
 
-int main() {
-    document *doc = markdown_init();
+    int main() {
+// Insert all 3 lines
+document *doc = markdown_init();
+    markdown_insert(doc, 0, 0, "Task 1\nTask 2\nNote");
+    printf("Inserted lines\n");
+    markdown_increment_version(doc);
 
-    // Version 0: Insert text
-    markdown_insert(doc, 0, 0, "Above\nBelow");
-    markdown_increment_version(doc); // -> version 1
+    // Apply ordered list starting from position 0
+    markdown_ordered_list(doc, 1, 0);
+    printf("Turned lines into ordered list\n");
+    markdown_increment_version(doc);
 
-    // Version 1: Insert horizontal rule between lines
-    markdown_horizontal_rule(doc, 1, 6); 
-    markdown_increment_version(doc);    
+    // Apply blockquote at start of "Note" line
+    // Recalculate position now that lines are ordered
+    char *flat = markdown_flatten(doc);
+    printf("----- Debugging ordered list applied -----\n%s\n", flat);
+    size_t pos = strstr(flat, "Note") - flat;
+    free(flat);
 
-    char *out = markdown_flatten(doc);
-    printf("Horizontal Rule Output:\n%s\n", out);
-    free(out);
+    markdown_blockquote(doc, 2, pos);
+    printf("Formatted 'Note' as blockquote\n");
+    markdown_increment_version(doc);
 
-    markdown_free(doc);
+    // Final output
+    char *final = markdown_flatten(doc);
+    puts("---- Final Output ----");
+    puts(final);
+    free(final);
     return 0;
+
     /*
     document *doc = markdown_init();
 
