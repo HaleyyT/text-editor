@@ -287,17 +287,6 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
 int markdown_newline(document *doc, size_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    if (!doc->staged_head){
-        doc->staged_head = deep_copy_chunks(doc->head);
-        if (!doc->staged_head) return -1;
-    }
-    //check valid position within the total length to insert newline 
-    size_t total_len = 0;
-    for (chunk* curr = doc->staged_head; curr; curr = curr->next){
-        total_len += strlen(curr->text);
-    }
-    if (pos > total_len) return -1;
-
     return markdown_insert(doc, version, pos, "\n");
 }
 
@@ -315,8 +304,7 @@ int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) 
     prefix[level] = ' '; //add space after the '#' level 
     prefix[level + 1] = '\0'; //add null terminator after space to end the string 
 
-    if (markdown_insert(doc, version, pos, prefix) != 0) return -1;
-    return SUCCESS;
+    return markdown_insert(doc, version, pos, prefix);
 }
 
 int markdown_bold(document *doc, uint64_t version, size_t start, size_t end) {
