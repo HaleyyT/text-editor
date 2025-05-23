@@ -206,20 +206,7 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
 char *flatten_staged(const document *doc) {
     if (!doc || !doc->staged_head) return strdup_safe("");
 
-    size_t total_len = 0;
-    for (chunk *curr = doc->staged_head; curr != NULL; curr = curr->next) {
-        total_len += strlen(curr->text);
-    }
-
-    char *res = malloc(total_len + 1);
-    if (!res) return NULL;
-    res[0] = '\0';
-
-    for (chunk *curr = doc->staged_head; curr != NULL; curr = curr->next) {
-        strcat(res, curr->text);
-    }
-
-    return res;
+    return markdown_flatten(doc);
 }
 
 
