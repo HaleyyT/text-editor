@@ -562,35 +562,29 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
 
-    char *suffix = malloc(strlen(url) + 2 + 1); // ")" + null terminator
-
-    // Insert components in reverse order to avoid shifting issues
-    size_t url_len = strlen(url);
-
-    printf("[DEBUG link] inserting ')' at pos %zu\n", end);
-    if (markdown_insert(doc, version, end, ")") != 0) return -1;
-
-    printf("[DEBUG link] inserting url '%s' at pos %zu\n", url, end);
-    if (markdown_insert(doc, version, end, url) != 0) return -1;
-
-    printf("[DEBUG link] inserting '](' at pos %zu\n", end);
-    if (markdown_insert(doc, version, end, "](") != 0) return -1;
-
-    printf("[DEBUG link] inserting '[' at pos %zu\n", start);
-    if (markdown_insert(doc, version, start, "[") != 0) return -1;
+    char *suffix = strdup_safe(")");
+    char *middle = strdup_safe(url);
+    char *prefix = strdup_safe("](");
+    char *open = strdup_safe("[");
 
     char *flat = flatten_staged(doc);
-    if (!flat) return -1;
-
     printf("[DEBUG link] flat before: %s\n", flat);
-    printf("[DEBUG link] start = %zu, end = %zu, text to wrap = '%.*s'\n",
-        start, end, (int)(end - start), flat + start);
+    printf("[DEBUG link] start = %zu, end = %zu, text to wrap = '%.*s'\n", start, end, (int)(end - start), &flat[start]);
     free(flat);
 
-    printf("[DEBUG link] inserting ')' at pos %zu\n", end + strlen("](") + strlen(url));
+    // Insert in reverse to preserve original positions
+    markdown_insert(doc, version, end, suffix);                         // )
+    markdown_insert(doc, version, end, middle);                         // url
+    markdown_insert(doc, version, end, prefix);                         // ](
+    markdown_insert(doc, version, start, open);                         // [
 
+    free(suffix);
+    free(middle);
+    free(prefix);
+    free(open);
     return 0;
 }
+
 
 // === Utilities ===
 void markdown_print(const document *doc, FILE *stream) {
@@ -817,6 +811,9 @@ void markdown_increment_version(document *doc) {
     free(flat);
     markdown_link(doc, 10, love_start, love_end, "https://mcdonalds.com.au/");
     markdown_increment_version(doc);
+    printf("[DEBUG main] love starts at %zu, ends at %zu, text: '%.*s'\n",
+        love_start, love_end, (int)(love_end - love_start), flat + love_start);
+
 
     // Final output
     char *final = markdown_flatten(doc);
