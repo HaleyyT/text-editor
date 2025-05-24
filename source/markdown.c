@@ -555,7 +555,7 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
         return -1;
     }
 
-    return markdown_insert(doc, version, pos, "\n---\n\n");
+    return markdown_insert(doc, version, pos, "---\n");
 }
 
 
