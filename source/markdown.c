@@ -507,16 +507,16 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
         insert_pos--;
     }
 
-    // If we’re mid-line, insert newline first
-    if (insert_pos != 0 && base[insert_pos - 1] != '\n') {
+    // Always insert newline if not at start
+    if (insert_pos != 0) {
         if (markdown_insert(doc, version, insert_pos, "\n") != 0) {
             free(base);
             return -1;
         }
-        insert_pos++;  // Shift forward after \n
+        insert_pos++;
     }
 
-    // Insert "- "
+    // Insert "- " at the start of the new line
     if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
         free(base);
         return -1;
@@ -527,7 +527,6 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     free(base);
     return 0;
 }
-
 
 
 
