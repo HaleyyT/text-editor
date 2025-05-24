@@ -410,6 +410,16 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
         return -1;
     }
 
+    if (line_start != 0 && flat[line_start - 1] != '\n') {
+        if (markdown_insert(doc, version, line_start, "\n") != 0) {
+            printf("[DEBUG blockquote] Failed insert newline before blockquote\n");
+            free(flat);
+            free(cleaned);
+            return -1;
+        }
+        line_start += 1;  // shift right because we inserted a char
+    }
+
     if (markdown_insert(doc, version, line_start, "> ") != 0) {
         printf("[DEBUG blockquote] Failed insert '> '\n");
         free(flat);
@@ -549,13 +559,29 @@ int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
 }
 
 
+
 int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
-    if (!doc || doc->version != version) {
-        printf("%s", "[DEBUG hrule] Failed to insert horizontal rule");
-        return -1;
+    if (!doc || doc->version != version) return -1;
+
+    ensure_shared_flat_initialized(doc);
+    size_t len = strlen(shared_flat);
+
+    // Insert newline before if not at start of line
+    if (pos > 0 && shared_flat[pos - 1] != '\n') {
+        if (markdown_insert(doc, version, pos, "\n") != 0) return -1;
+        pos++; // adjust position for next insert
     }
 
-    return markdown_insert(doc, version, pos, "---\n");
+    // Insert the horizontal rule
+    if (markdown_insert(doc, version, pos, "---") != 0) return -1;
+    pos += 3;
+
+    // Insert newline after if not already present
+    if (pos >= len || shared_flat[pos] != '\n') {
+        if (markdown_insert(doc, version, pos, "\n") != 0) return -1;
+    }
+
+    return 0;
 }
 
 
@@ -563,36 +589,37 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
 
-#ifdef DEBUG_MARKDOWN
-    char *flat = flatten_staged(doc);
-    printf("[DEBUG link] flat before: %s\n", flat);
-    printf("[DEBUG link] start = %zu, end = %zu, text to wrap = '%.*s'\n",
+    ensure_shared_flat_initialized(doc);
+    if (!shared_flat) return -1;
+
+    char *flat = strdup_safe(shared_flat);
+    if (!flat) return -1;
+
+    printf("[DEBUG link] shared_flat before insert: \"%s\"\n", flat);
+    printf("[DEBUG link] Intended range: [%zu, %zu), text='%.*s'\n", 
            start, end, (int)(end - start), flat + start);
+
+    // Sanity check: make sure we're wrapping the correct word
+    if (strncmp(flat + start, "love", 4) != 0) {
+        printf("[DEBUG link] Warning: link range does not match expected word 'love'\n");
+    }
+
     free(flat);
-#endif
 
-    // Insert in reverse order to preserve positions
-    // Step 1: insert closing parenthesis first
+    // Apply in reverse order to preserve index integrity
     if (markdown_insert(doc, version, end, ")") != 0) return -1;
-
-    // Step 2: insert the URL
     if (markdown_insert(doc, version, end, url) != 0) return -1;
-
-    // Step 3: insert the opening paren and closing square bracket
     if (markdown_insert(doc, version, end, "](") != 0) return -1;
-
-    // Step 4: insert the opening square bracket before start
     if (markdown_insert(doc, version, start, "[") != 0) return -1;
 
-#ifdef DEBUG_MARKDOWN
-    printf("[DEBUG link] inserted ) at %zu\n", end);
-    printf("[DEBUG link] inserted url at %zu\n", end);
-    printf("[DEBUG link] inserted ]( at %zu\n", end);
-    printf("[DEBUG link] inserted [ at %zu\n", start);
-#endif
+    // Print staged content after inserts
+    char *after = flatten_staged(doc);
+    printf("[DEBUG link] staged content after link insert: \"%s\"\n", after);
+    free(after);
 
     return 0;
 }
+
 
 
 
