@@ -495,39 +495,39 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    if (!doc->staged_head) {
-        doc->staged_head = deep_copy_chunks(doc->head);
-        if (!doc->staged_head) return -1;
+    ensure_shared_flat_initialized(doc);
+    if (!base_flat) return -1;
+
+    char *base = strdup_safe(base_flat);
+    if (!base) return -1;
+
+    // Rewind to line start
+    size_t insert_pos = pos;
+    while (insert_pos > 0 && base[insert_pos - 1] != '\n') {
+        insert_pos--;
     }
 
-    char *str_flat = flatten_staged(doc);
-    if (!str_flat) return -1;
-
-    size_t len = strlen(str_flat);
-    size_t shift = 0;
-
-    printf("staged content before list formatting: \n%s\n", str_flat);
-
-    for (size_t i = pos; i < len;) {
-        printf("Inserting \"- \" at position: %zu\n", i + shift);
-        if (markdown_insert(doc, version, i + shift, "- ") != 0){
-            printf("fail to insert - sign at position: %zu\n", i+shift);
-            free(str_flat);
+    // If we’re mid-line, insert newline first
+    if (insert_pos != 0 && base[insert_pos - 1] != '\n') {
+        if (markdown_insert(doc, version, insert_pos, "\n") != 0) {
+            free(base);
             return -1;
         }
-        shift += 2;
-
-        //move to the next new line 
-        while (i < len && str_flat[i] != '\n') i++;
-        i++; //pass '\n'
+        insert_pos++;  // Shift forward after \n
     }
-    char *check = flatten_staged(doc);
-    printf("Staged content after list formatting:\n%s\n", check);
-    free(check);
 
-    free(str_flat);
-    return SUCCESS;
+    // Insert "- "
+    if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
+        free(base);
+        return -1;
+    }
+
+    printf("[DEBUG unordered_list] inserted \"- \" at pos %zu (from input %zu)\n", insert_pos, pos);
+
+    free(base);
+    return 0;
 }
+
 
 
 
