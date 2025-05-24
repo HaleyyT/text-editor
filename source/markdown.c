@@ -364,7 +364,6 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
     return SUCCESS;
 }
 
-
 int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
@@ -380,33 +379,56 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
         line_start--;
     }
 
+    // Skip digits like "3. "
     size_t i = line_start;
     while (isdigit(flat[i])) i++;
     if (flat[i] == '.' && flat[i + 1] == ' ') {
         i += 2;
     }
 
+    // Find end of line
     size_t line_end = i;
     while (flat[line_end] != '\n' && flat[line_end] != '\0') line_end++;
-    size_t delete_len = (flat[line_end] == '\n') ? line_end - line_start + 1 : line_end - line_start;
 
+    size_t delete_len = (flat[line_end] == '\n') ? (line_end - line_start + 1) : (line_end - line_start);
     char *cleaned = strndup_safe(&flat[i], line_end - i);
     if (!cleaned) {
         free(flat);
         return -1;
     }
 
-    printf("[DEBUG blockquote] Found line start: %zu, content: '%.*s'\n", line_start, (int)(line_end - line_start), &flat[line_start]);
+    printf("[DEBUG blockquote] base_flat:\n%s\n", base_flat);
+    printf("[DEBUG blockquote] Found line start: %zu\n", line_start);
+    printf("[DEBUG blockquote] Line content: '%.*s'\n", (int)(line_end - line_start), &flat[line_start]);
     printf("[DEBUG blockquote] Cleaned content: '%s'\n", cleaned);
+    printf("[DEBUG blockquote] Deleting %zu chars from pos %zu\n", delete_len, line_start);
 
-    markdown_delete(doc, version, line_start, delete_len);
-    markdown_insert(doc, version, line_start, "> ");
-    markdown_insert(doc, version, line_start + 2, cleaned);
+    if (markdown_delete(doc, version, line_start, delete_len) != 0) {
+        printf("[DEBUG blockquote] Failed delete\n");
+        free(flat);
+        free(cleaned);
+        return -1;
+    }
 
-    free(cleaned);
+    if (markdown_insert(doc, version, line_start, "> ") != 0) {
+        printf("[DEBUG blockquote] Failed insert '> '\n");
+        free(flat);
+        free(cleaned);
+        return -1;
+    }
+
+    if (markdown_insert(doc, version, line_start + 2, cleaned) != 0) {
+        printf("[DEBUG blockquote] Failed insert cleaned content\n");
+        free(flat);
+        free(cleaned);
+        return -1;
+    }
+
     free(flat);
+    free(cleaned);
     return SUCCESS;
 }
+
 
 
 
@@ -713,40 +735,54 @@ void markdown_increment_version(document *doc) {
 
     int main() {
 // Insert all 3 lines
-        document *doc = markdown_init();
+    document *doc = markdown_init();
     printf("Document initialized\n");
 
-    markdown_insert(doc, 0, 0, "Task 1\n");
+    // Version 0 → 1: Insert "Task 1"
+    markdown_insert(doc, 0, 0, "Task 1");
     markdown_increment_version(doc);
     printf("Inserted 'Task 1'\n");
 
-    markdown_insert(doc, 1, strlen("Task 1\n"), "Task 2\n");
+    // Version 1 → 2: Insert "\n"
+    markdown_insert(doc, 1, strlen("Task 1"), "\n");
+    markdown_increment_version(doc);
+    printf("Inserted newline after 'Task 1'\n");
+
+    // Version 2 → 3: Insert "Task 2"
+    markdown_insert(doc, 2, strlen("Task 1\n"), "Task 2");
     markdown_increment_version(doc);
     printf("Inserted 'Task 2'\n");
 
-    markdown_insert(doc, 2, strlen("Task 1\nTask 2\n"), "Note\n");
+    // Version 3 → 4: Insert "\n"
+    markdown_insert(doc, 3, strlen("Task 1\nTask 2"), "\n");
+    markdown_increment_version(doc);
+    printf("Inserted newline after 'Task 2'\n");
+
+    // Version 4 → 5: Insert "Note"
+    markdown_insert(doc, 4, strlen("Task 1\nTask 2\n"), "Note");
     markdown_increment_version(doc);
     printf("Inserted 'Note'\n");
 
-    markdown_ordered_list(doc, 3, 0);
+    // Version 5 → 6: Ordered list
+    markdown_ordered_list(doc, 5, 0);
     markdown_increment_version(doc);
     printf("Turned tasks into ordered list\n");
 
+    // Version 6 → 7: Blockquote "Note"
     char *flat = markdown_flatten(doc);
-    size_t pos = strstr(flat, "Note") - flat;
+    size_t note_pos = strstr(flat, "Note") - flat;
     free(flat);
-
-    markdown_blockquote(doc, 4, pos);
+    markdown_blockquote(doc, 6, note_pos);
     markdown_increment_version(doc);
     printf("Formatted Note as blockquote\n");
 
+    // Final output
     char *final = markdown_flatten(doc);
     puts("---- Final Output ----");
     puts(final);
     free(final);
     markdown_free(doc);
     return 0;
-
 
     /*
     document *doc = markdown_init();
