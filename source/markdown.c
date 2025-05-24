@@ -491,38 +491,44 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 }
 
 
+
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    ensure_shared_flat_initialized(doc);
-    if (!base_flat) return -1;
-
-    char *flat = strdup_safe(base_flat);
-    if (!flat) return -1;
-
-    // Rewind to start of line
-    size_t insert_pos = pos;
-    while (insert_pos > 0 && flat[insert_pos - 1] != '\n') {
-        insert_pos--;
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
     }
 
-    // Check if already at line start
-    if (insert_pos != 0 && flat[insert_pos - 1] != '\n') {
-        if (markdown_insert(doc, version, insert_pos, "\n") != 0) {
-            free(flat);
+    char *str_flat = flatten_staged(doc);
+    if (!str_flat) return -1;
+
+    size_t len = strlen(str_flat);
+    size_t shift = 0;
+
+    printf("staged content before list formatting: \n%s\n", str_flat);
+
+    for (size_t i = pos; i < len;) {
+        printf("Inserting \"- \" at position: %zu\n", i + shift);
+        if (markdown_insert(doc, version, i + shift, "- ") != 0){
+            printf("fail to insert - sign at position: %zu\n", i+shift);
+            free(str_flat);
             return -1;
         }
-        insert_pos++;
-    }
+        shift += 2;
 
-    if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
-        free(flat);
-        return -1;
+        //move to the next new line 
+        while (i < len && str_flat[i] != '\n') i++;
+        i++; //pass '\n'
     }
+    char *check = flatten_staged(doc);
+    printf("Staged content after list formatting:\n%s\n", check);
+    free(check);
 
-    free(flat);
-    return 0;
+    free(str_flat);
+    return SUCCESS;
 }
+
 
 
 
