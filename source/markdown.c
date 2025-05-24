@@ -490,36 +490,7 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     return 0;
 }
 
-
-
-
-
-int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
-    if (!doc || doc->version != version) return -1;
-
-    ensure_shared_flat_initialized(doc);
-    if (!base_flat) return -1;
-
-    // Always work from the base document for deferred semantics
-    char *base = strdup_safe(base_flat);
-    if (!base) return -1;
-
-    // Rewind to the beginning of the line
-    size_t start = pos;
-    while (start > 0 && base[start - 1] != '\n') {
-        start--;
-    }
-
-    // Only insert "- " at that one line start
-    printf("[DEBUG unordered_list] inserting \"- \" at pos %zu (computed from input pos %zu)\n", start, pos);
-    int result = markdown_insert(doc, version, start, "- ");
-
-    free(base);
-    return result;
-}
-
-
-
+ 
 
 
 int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
@@ -767,18 +738,23 @@ void markdown_increment_version(document *doc) {
 
     int main() {
 // Insert all 3 lines
-document *doc = markdown_init();
+    document *doc = markdown_init();
     printf("Document initialized\n");
 
-    // Version 0 → 1: Insert text with newlines between logical "lines"
-    markdown_insert(doc, 0, 0, "112\n233445566778\n899");
-    markdown_increment_version(doc);  // version 1
+    // Step 1: flat string
+    markdown_insert(doc, 0, 0, "112233445566778899");
+    markdown_increment_version(doc); // v1
 
-    // Start list formatting at second line (pos = 4 = after "112\n")
-    markdown_unordered_list(doc, 1, 4);
-    markdown_increment_version(doc);  // version 2
+    // Step 2: insert newlines manually (simulate how ED would have split them)
+    markdown_insert(doc, 1, 3, "\n");   // after 112
+    markdown_insert(doc, 1, 12, "\n");  // after 233445566778
+    markdown_increment_version(doc);   // v2
 
-    // Flatten and check output
+    // Step 3: format 2nd and 3rd lines
+    markdown_unordered_list(doc, 2, 4);   // start of line 2
+    markdown_unordered_list(doc, 2, 18);  // start of line 3 (adjusted for earlier inserts)
+    markdown_increment_version(doc);     // v3
+
     char *final = markdown_flatten(doc);
     puts("---- Final Output ----");
     puts(final);
@@ -786,6 +762,7 @@ document *doc = markdown_init();
 
     markdown_free(doc);
     return 0;
+
     /*
     document *doc = markdown_init();
 
