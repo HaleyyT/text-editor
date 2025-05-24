@@ -491,7 +491,6 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 }
 
 
-
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
@@ -501,34 +500,31 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     char *flat = strdup_safe(base_flat);
     if (!flat) return -1;
 
-    size_t len = strlen(flat);
     size_t insert_pos = pos;
-
-    // Step 1: rewind to start of current line
+    // Rewind to start of the line (or full string)
     while (insert_pos > 0 && flat[insert_pos - 1] != '\n') {
         insert_pos--;
     }
 
-    // Step 2: insert newline BEFORE insert_pos if not already a newline
+    // Step 1: if not at start, and previous char isn’t a newline, insert \n
     if (insert_pos != 0 && flat[insert_pos - 1] != '\n') {
         if (markdown_insert(doc, version, insert_pos, "\n") != 0) {
             free(flat);
             return -1;
         }
-        insert_pos++;  // shift forward to compensate
+        insert_pos++;  // shift due to \n
     }
 
-    // Step 3: insert "- " at line start
+    // Step 2: insert "- " at that line start
     if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
         free(flat);
         return -1;
     }
 
-    printf("[DEBUG unordered_list] Inserted '- ' at %zu (computed from pos = %zu)\n", insert_pos, pos);
-
     free(flat);
     return 0;
 }
+
 
 
 
