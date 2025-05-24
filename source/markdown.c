@@ -572,10 +572,10 @@ int markdown_link(document *doc, uint64_t version, size_t start, size_t end, con
     if (markdown_insert(doc, version, end, url) != 0) return -1;
 
     printf("[DEBUG link] inserting '](' at pos %zu\n", end);
-    if (markdown_insert(doc, version, end, "](") != 0) return -1;
+    if (markdown_insert(doc, version, end + 2, "](") != 0) return -1;
 
     printf("[DEBUG link] inserting '[' at pos %zu\n", start);
-    if (markdown_insert(doc, version, start, "[") != 0) return -1;
+    if (markdown_insert(doc, version, start + 2, "[") != 0) return -1;
 
     return 0;
 
