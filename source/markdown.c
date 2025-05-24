@@ -558,31 +558,47 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
     return markdown_insert(doc, version, pos, "---\n");
 }
 
-
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
 
-    char *suffix = strdup_safe(")");
-    char *middle = strdup_safe(url);
-    char *prefix = strdup_safe("](");
-    char *open = strdup_safe("[");
+    // Construct the pieces of the link
+    char *open_paren = strdup_safe("](");
+    char *url_copy = strdup_safe(url);
+    char *close_paren = strdup_safe(")");
+    char *open_bracket = strdup_safe("[");
 
+    if (!open_paren || !url_copy || !close_paren || !open_bracket) {
+        free(open_paren); free(url_copy); free(close_paren); free(open_bracket);
+        return -1;
+    }
+
+#ifdef DEBUG_MARKDOWN
     char *flat = flatten_staged(doc);
     printf("[DEBUG link] flat before: %s\n", flat);
-    printf("[DEBUG link] start = %zu, end = %zu, text to wrap = '%.*s'\n", start, end, (int)(end - start), &flat[start]);
+    printf("[DEBUG link] start = %zu, end = %zu, text to wrap = '%.*s'\n",
+           start, end, (int)(end - start), flat + start);
     free(flat);
+#endif
 
-    // Insert in reverse to preserve original positions
-    markdown_insert(doc, version, end, suffix);                         // )
-    markdown_insert(doc, version, end, middle);                         // url
-    markdown_insert(doc, version, end, prefix);                         // ](
-    markdown_insert(doc, version, start, open);                         // [
+    // Insert in reverse order to preserve positions
+    if (markdown_insert(doc, version, end, open_paren) != 0) goto fail;
+    if (markdown_insert(doc, version, end + strlen(open_paren), url_copy) != 0) goto fail;
+    if (markdown_insert(doc, version, end + strlen(open_paren) + strlen(url_copy), close_paren) != 0) goto fail;
+    if (markdown_insert(doc, version, start, open_bracket) != 0) goto fail;
 
-    free(suffix);
-    free(middle);
-    free(prefix);
-    free(open);
+#ifdef DEBUG_MARKDOWN
+    printf("[DEBUG link] inserted ]( at %zu\n", end);
+    printf("[DEBUG link] inserted url at %zu\n", end + strlen(open_paren));
+    printf("[DEBUG link] inserted ) at %zu\n", end + strlen(open_paren) + strlen(url_copy));
+    printf("[DEBUG link] inserted [ at %zu\n", start);
+#endif
+
+    free(open_paren); free(url_copy); free(close_paren); free(open_bracket);
     return 0;
+
+fail:
+    free(open_paren); free(url_copy); free(close_paren); free(open_bracket);
+    return -1;
 }
 
 
