@@ -550,30 +550,34 @@ int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
 
 
 int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
-    if (!doc || doc->version != version) return -1;
-    return markdown_insert(doc, version, pos, "---\n");
+    if (!doc || doc->version != version) {
+        printf("%s", "[DEBUG hrule] Failed to insert horizontal rule");
+        return -1;
+    }
+
+    return markdown_insert(doc, version, pos, "\n---\n\n");
 }
 
 
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
 
-    char *suffix = malloc(strlen(url) + 2 + 1); // ")" + null terminator
-    if (!suffix) return -1;
-    sprintf(suffix, ")");
+    // Insert components in reverse order to avoid shifting issues
+    size_t url_len = strlen(url);
 
-    char *middle = strdup_safe(url);
-    if (!middle) { free(suffix); return -1; }
+    printf("[DEBUG link] inserting ')' at pos %zu\n", end);
+    if (markdown_insert(doc, version, end, ")") != 0) return -1;
 
-    char *prefix = strdup_safe("](");
-    if (!prefix) { free(suffix); free(middle); return -1; }
+    printf("[DEBUG link] inserting url '%s' at pos %zu\n", url, end);
+    if (markdown_insert(doc, version, end, url) != 0) return -1;
 
-    // Insert in reverse order to preserve positions
-    markdown_insert(doc, version, end, prefix);             // ](
-    markdown_insert(doc, version, end + strlen(prefix), middle);  // url
-    markdown_insert(doc, version, end + strlen(prefix) + strlen(middle), suffix); // )
+    printf("[DEBUG link] inserting '](' at pos %zu\n", end);
+    if (markdown_insert(doc, version, end, "](") != 0) return -1;
 
-    markdown_insert(doc, version, start, "["); // [
+    printf("[DEBUG link] inserting '[' at pos %zu\n", start);
+    if (markdown_insert(doc, version, start, "[") != 0) return -1;
+
+    return 0;
 
     return 0;
 }
@@ -735,48 +739,75 @@ void markdown_increment_version(document *doc) {
 
     int main() {
 // Insert all 3 lines
-    document *doc = markdown_init();
+       document *doc = markdown_init();
     printf("Document initialized\n");
 
-    // Version 0 → 1: Insert "Task 1"
-    markdown_insert(doc, 0, 0, "Task 1");
+    // Insert the initial sentence
+    markdown_insert(doc, 0, 0, "I love cheeseburgers.");
     markdown_increment_version(doc);
-    printf("Inserted 'Task 1'\n");
 
-    // Version 1 → 2: Insert "\n"
-    markdown_insert(doc, 1, strlen("Task 1"), "\n");
+    // Bold "cheeseburgers"
+    markdown_bold(doc, 1, strlen("I love "), strlen("I love cheeseburgers"));
     markdown_increment_version(doc);
-    printf("Inserted newline after 'Task 1'\n");
 
-    // Version 2 → 3: Insert "Task 2"
-    markdown_insert(doc, 2, strlen("Task 1\n"), "Task 2");
+    // Italicize "eese"
+    markdown_italic(doc, 2, strlen("I lovch"), strlen("I love cheese"));
     markdown_increment_version(doc);
-    printf("Inserted 'Task 2'\n");
 
-    // Version 3 → 4: Insert "\n"
-    markdown_insert(doc, 3, strlen("Task 1\nTask 2"), "\n");
-    markdown_increment_version(doc);
-    printf("Inserted newline after 'Task 2'\n");
-
-    // Version 4 → 5: Insert "Note"
-    markdown_insert(doc, 4, strlen("Task 1\nTask 2\n"), "Note");
-    markdown_increment_version(doc);
-    printf("Inserted 'Note'\n");
-
-    // Version 5 → 6: Ordered list
-    markdown_ordered_list(doc, 5, 0);
-    markdown_increment_version(doc);
-    printf("Turned tasks into ordered list\n");
-
-    // Version 6 → 7: Blockquote "Note"
+    // Insert " from BurgerKing" before "."
     char *flat = markdown_flatten(doc);
-    size_t note_pos = strstr(flat, "Note") - flat;
+    char *dot_pos = strchr(flat, '.');
+    size_t insert_pos = dot_pos - flat;
     free(flat);
-    markdown_blockquote(doc, 6, note_pos);
+    markdown_insert(doc, 3, insert_pos, " from BurgerKing");
     markdown_increment_version(doc);
-    printf("Formatted Note as blockquote\n");
 
-    // Final output
+    // Delete "BurgerKing"
+    flat = markdown_flatten(doc);
+    size_t bk_pos = strstr(flat, "BurgerKing") - flat;
+    free(flat);
+    markdown_delete(doc, 4, bk_pos, strlen("BurgerKing"));
+    markdown_increment_version(doc);
+
+    // Insert "McDonald's"
+    markdown_insert(doc, 5, bk_pos, "McDonald's");
+    markdown_increment_version(doc);
+
+    // Format "McDonald's" as code
+    markdown_code(doc, 6, bk_pos, bk_pos + strlen("McDonald's"));
+    markdown_increment_version(doc);
+
+    // Insert " i'm lovin' it" after '.'
+    flat = markdown_flatten(doc);
+    dot_pos = strchr(flat, '.');
+    insert_pos = dot_pos - flat + 1; // after .
+    free(flat);
+    markdown_insert(doc, 7, insert_pos, " i'm lovin' it");
+    markdown_increment_version(doc);
+
+    // Blockquote "i'm lovin' it"
+    flat = markdown_flatten(doc);
+    size_t quote_pos = strstr(flat, "i'm lovin'") - flat;
+    free(flat);
+    markdown_blockquote(doc, 8, quote_pos);
+    markdown_increment_version(doc);
+
+    // Insert horizontal rule after "."
+    flat = markdown_flatten(doc);
+    dot_pos = strchr(flat, '.');
+    insert_pos = dot_pos - flat + 1;
+    free(flat);
+    markdown_horizontal_rule(doc, 9, insert_pos);
+    markdown_increment_version(doc);
+
+    // Linkify "love" to https://mcdonalds.com.au/
+    flat = markdown_flatten(doc);
+    size_t love_start = strstr(flat, "love") - flat;
+    size_t love_end = love_start + strlen("love");
+    free(flat);
+    markdown_link(doc, 10, love_start, love_end, "https://mcdonalds.com.au/");
+    markdown_increment_version(doc);
+
     char *final = markdown_flatten(doc);
     puts("---- Final Output ----");
     puts(final);
