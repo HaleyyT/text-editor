@@ -500,39 +500,59 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    if (!doc->staged_head) {
-        doc->staged_head = deep_copy_chunks(doc->head);
-        if (!doc->staged_head) return -1;
+    ensure_shared_flat_initialized(doc);
+    if (!base_flat) return -1;
+
+    // Work from base_flat (the original state at this version)
+    char *base = strdup_safe(base_flat);
+    if (!base) return -1;
+
+    printf("[DEBUG unordered_list] base_flat:\n%s\n", base);
+
+    size_t len = strlen(base);
+    size_t *line_starts = malloc(sizeof(size_t) * (len + 1));
+    if (!line_starts) {
+        free(base);
+        return -1;
     }
 
-    char *str_flat = flatten_staged(doc);
-    if (!str_flat) return -1;
+    size_t line_count = 0;
 
-    size_t len = strlen(str_flat);
-    size_t shift = 0;
+    // First line if starting from mid-doc
+    size_t start = pos;
+    while (start > 0 && base[start - 1] != '\n') start--;
+    line_starts[line_count++] = start;
 
-    printf("staged content before list formatting: \n%s\n", str_flat);
+    // Remaining lines
+    for (size_t i = start; i < len; i++) {
+        if (base[i] == '\n') {
+            if (i + 1 < len) {
+                line_starts[line_count++] = i + 1;
+            }
+        }
+    }
 
-    for (size_t i = pos; i < len;) {
-        printf("Inserting \"- \" at position: %zu\n", i + shift);
-        if (markdown_insert(doc, version, i + shift, "- ") != 0){
-            printf("fail to insert - sign at position: %zu\n", i+shift);
-            free(str_flat);
+    // Apply insertions from end to start (to preserve positions)
+    for (ssize_t i = line_count - 1; i >= 0; i--) {
+        size_t insert_pos = line_starts[i];
+        printf("Inserting \"- \" at base position: %zu\n", insert_pos);
+        if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
+            printf("Failed to insert - at %zu\n", insert_pos);
+            free(base);
+            free(line_starts);
             return -1;
         }
-        shift += 2;
-
-        //move to the next new line 
-        while (i < len && str_flat[i] != '\n') i++;
-        i++; //pass '\n'
     }
-    char *check = flatten_staged(doc);
-    printf("Staged content after list formatting:\n%s\n", check);
-    free(check);
 
-    free(str_flat);
+    free(base);
+    free(line_starts);
+
+    char *check = flatten_staged(doc);
+    printf("[DEBUG unordered_list] staged result:\n%s\n", check);
+    free(check);
     return SUCCESS;
 }
+
 
 
 int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
@@ -780,83 +800,23 @@ void markdown_increment_version(document *doc) {
 
     int main() {
 // Insert all 3 lines
-    document *doc = markdown_init();
+document *doc = markdown_init();
     printf("Document initialized\n");
 
-    // Version 0 → 1: Insert the initial sentence
-    markdown_insert(doc, 0, 0, "I love cheeseburgers.");
-    markdown_increment_version(doc);
+    // Version 0 → 1: Insert text with newlines between logical "lines"
+    markdown_insert(doc, 0, 0, "112\n233445566778\n899");
+    markdown_increment_version(doc);  // version 1
 
-    // Version 1 → 2: Bold "cheeseburgers"
-    markdown_bold(doc, 1, strlen("I love "), strlen("I love cheeseburgers"));
-    markdown_increment_version(doc);
+    // Start list formatting at second line (pos = 4 = after "112\n")
+    markdown_unordered_list(doc, 1, 4);
+    markdown_increment_version(doc);  // version 2
 
-    // Version 2 → 3: Italicize "eese"
-    markdown_italic(doc, 2, strlen("I lovch"), strlen("I love cheese"));
-    markdown_increment_version(doc);
-
-    // Version 3 → 4: Insert " from BurgerKing" before "."
-    char *flat = markdown_flatten(doc);
-    char *dot = strchr(flat, '.');
-    size_t insert_pos = dot - flat;
-    free(flat);
-    markdown_insert(doc, 3, insert_pos, " from BurgerKing");
-    markdown_increment_version(doc);
-
-    // Version 4 → 5: Delete "BurgerKing"
-    flat = markdown_flatten(doc);
-    size_t bk_pos = strstr(flat, "BurgerKing") - flat;
-    free(flat);
-    markdown_delete(doc, 4, bk_pos, strlen("BurgerKing"));
-    markdown_increment_version(doc);
-
-    // Version 5 → 6: Insert "McDonald's"
-    markdown_insert(doc, 5, bk_pos, "McDonald's");
-    markdown_increment_version(doc);
-
-    // Version 6 → 7: Format "McDonald's" as code
-    markdown_code(doc, 6, bk_pos, bk_pos + strlen("McDonald's"));
-    markdown_increment_version(doc);
-
-    // Version 7 → 8: Insert " i'm lovin' it" after "."
-    flat = markdown_flatten(doc);
-    dot = strchr(flat, '.');
-    insert_pos = dot - flat + 1;
-    free(flat);
-    markdown_insert(doc, 7, insert_pos, " i'm lovin' it");
-    markdown_increment_version(doc);
-
-    // Version 8 → 9: Blockquote "i'm lovin' it"
-    flat = markdown_flatten(doc);
-    size_t quote_pos = strstr(flat, "i'm lovin'") - flat;
-    free(flat);
-    markdown_blockquote(doc, 8, quote_pos);
-    markdown_increment_version(doc);
-
-    // Version 9 → 10: Horizontal rule after '.'
-    flat = markdown_flatten(doc);
-    dot = strchr(flat, '.');
-    insert_pos = dot - flat + 1;
-    free(flat);
-    markdown_horizontal_rule(doc, 9, insert_pos);
-    markdown_increment_version(doc);
-
-    // Version 10 → 11: Linkify "love" (compute from base_flat to avoid shifting bug)
-    ensure_shared_flat_initialized(doc); // sets base_flat
-    flat = strdup_safe(base_flat);       // clean committed state
-    char *start_ptr = strstr(flat, "love");
-    size_t start = start_ptr - flat;
-    size_t end = start + strlen("love");
-    printf("[DEBUG main] love starts at %zu, ends at %zu, text: '%.*s'\n", start, end, (int)(end - start), start_ptr);
-    free(flat);
-    markdown_link(doc, 10, start, end, "https://mcdonalds.com.au/");
-    markdown_increment_version(doc);
-
-    // Final output
+    // Flatten and check output
     char *final = markdown_flatten(doc);
     puts("---- Final Output ----");
     puts(final);
     free(final);
+
     markdown_free(doc);
     return 0;
     /*
