@@ -1,7 +1,7 @@
 #include "../libs/markdown.h"
 #include <stdlib.h>
 #include <string.h>
-
+#include <ctype.h>
 
 typedef enum { EDIT_INSERT, EDIT_DELETE } edit_type;
 
@@ -366,88 +366,100 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
 
 
 
-
 int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    // Ensure base_flat and shared_flat are initialized
     ensure_shared_flat_initialized(doc);
+    if (!base_flat) return -1;
 
-    if (!base_flat) {
-        printf("[DEBUG blockquote] base_flat is NULL\n");
-        return -1;
-    }
-
-    // Make a local copy of base_flat to work with
     char *flat = strdup_safe(base_flat);
     if (!flat) return -1;
 
     size_t len = strlen(flat);
-    size_t shift = 0;
 
-    // Insert "> " at the start of the specified position
-    if (markdown_insert(doc, version, pos, "> ") != 0) {
-        printf("[DEBUG blockquote] Failed to insert at initial pos %zu\n", pos);
+    // Find the line start
+    size_t line_start = pos;
+    while (line_start > 0 && flat[line_start - 1] != '\n') {
+        line_start--;
+    }
+
+    // Skip over leading list number like "3. "
+    size_t i = line_start;
+    while (isdigit(flat[i])) i++; // skip digits
+    if (flat[i] == '.' && flat[i + 1] == ' ') {
+        i += 2; // skip ". "
+    }
+
+    // Prepare the cleaned line content
+    char *cleaned = strdup_safe(&flat[i]);
+    if (!cleaned) {
         free(flat);
         return -1;
     }
-    printf("[DEBUG blockquote] Inserted '> ' at pos %zu\n", pos);
 
-    // Traverse the original base_flat and insert "> " after each newline
-    for (size_t i = pos; i < len; ++i) {
-        if (flat[i] == '\n') {
-            size_t insert_pos = i  + 1;
-            printf("[DEBUG blockquote] Inserting '> ' at pos %zu\n", insert_pos);
-            if (markdown_insert(doc, version, insert_pos, "> ") != 0) {
-                printf("[DEBUG blockquote] Failed to insert '> ' after newline at pos %zu\n", insert_pos);
-                free(flat);
-                return -1;
-            }
-            //shift += 2;
-        }
-    }
+    // Delete the full line from its original position
+    size_t line_end = i;
+    while (flat[line_end] != '\n' && flat[line_end] != '\0') line_end++;
+    size_t delete_len = line_end - line_start;
+    markdown_delete(doc, version, line_start, delete_len);
 
+    // Insert "> cleaned"
+    size_t new_pos = line_start;
+    markdown_insert(doc, version, new_pos, "> ");
+    markdown_insert(doc, version, new_pos + 2, cleaned);
+
+    free(cleaned);
     free(flat);
     return SUCCESS;
 }
 
 
 
-
 int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
-    char *flat = flatten_staged(doc);
-    if (!flat) return -1;
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
 
-    size_t len = strlen(flat);
-    size_t shift = 0;
+    size_t offset = pos;
     int index = 1;
 
-    // First line prefix
-    char prefix[16];
-    snprintf(prefix, sizeof(prefix), "%d. ", index++);
-    if (markdown_insert(doc, version, pos, prefix) != 0) {
-        free(flat);
-        return -1;
-    }
-    shift += strlen(prefix);
+    while (1) {
+        char prefix[16];
+        snprintf(prefix, sizeof(prefix), "%d. ", index);  // e.g., "1. ", "2. "
 
-    for (size_t i = pos; i < len; ++i) {
-        if (flat[i] == '\n') {
-            snprintf(prefix, sizeof(prefix), "%d. ", index++);
-            size_t insert_pos = i + 1 + shift;
-            if (markdown_insert(doc, version, insert_pos, prefix) != 0) {
-                free(flat);
-                return -1;
+        if (markdown_insert(doc, version, offset, prefix) != 0) return -1;
+
+        offset += strlen(prefix);
+
+        // Search for the next newline
+        chunk *curr = doc->staged_head;
+        size_t chars_seen = 0;
+        int found = 0;
+
+        while (curr) {
+            size_t len = strlen(curr->text);
+            for (size_t i = 0; i < len; ++i) {
+                if (chars_seen + i >= offset && curr->text[i] == '\n') {
+                    offset = chars_seen + i + 1;  // after \n
+                    found = 1;
+                    break;
+                }
             }
-            shift += strlen(prefix);
+            if (found) break;
+            chars_seen += len;
+            curr = curr->next;
         }
+
+        if (!found) break;
+        index++;
     }
 
-    free(flat);
     return 0;
 }
+
 
 
 
