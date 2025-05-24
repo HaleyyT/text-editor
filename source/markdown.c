@@ -490,7 +490,65 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     return 0;
 }
 
- 
+
+
+int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
+    if (!doc || doc->version != version) return -1;
+
+    ensure_shared_flat_initialized(doc);
+    if (!base_flat) return -1;
+
+    // Work from base_flat (the original state at this version)
+    char *base = strdup_safe(base_flat);
+    if (!base) return -1;
+
+    printf("[DEBUG unordered_list] base_flat:\n%s\n", base);
+
+    size_t len = strlen(base);
+    size_t *line_starts = malloc(sizeof(size_t) * (len + 1));
+    if (!line_starts) {
+        free(base);
+        return -1;
+    }
+
+    size_t line_count = 0;
+
+    // First line if starting from mid-doc
+    size_t start = pos;
+    while (start > 0 && base[start - 1] != '\n') start--;
+    line_starts[line_count++] = start;
+
+    // Remaining lines
+    for (size_t i = start; i < len; i++) {
+        if (base[i] == '\n') {
+            if (i + 1 < len) {
+                line_starts[line_count++] = i + 1;
+            }
+        }
+    }
+
+    // Apply insertions from end to start (to preserve positions)
+    for (ssize_t i = line_count - 1; i >= 0; i--) {
+        size_t insert_pos = line_starts[i];
+        printf("Inserting \"- \" at base position: %zu\n", insert_pos);
+        if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
+            printf("Failed to insert - at %zu\n", insert_pos);
+            free(base);
+            free(line_starts);
+            return -1;
+        }
+    }
+
+    free(base);
+    free(line_starts);
+
+    char *check = flatten_staged(doc);
+    printf("[DEBUG unordered_list] staged result:\n%s\n", check);
+    free(check);
+    return SUCCESS;
+}
+
+
 
 
 int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
