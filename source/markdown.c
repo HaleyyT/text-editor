@@ -562,6 +562,8 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
 
+    char *suffix = malloc(strlen(url) + 2 + 1); // ")" + null terminator
+
     // Insert components in reverse order to avoid shifting issues
     size_t url_len = strlen(url);
 
@@ -572,12 +574,20 @@ int markdown_link(document *doc, uint64_t version, size_t start, size_t end, con
     if (markdown_insert(doc, version, end, url) != 0) return -1;
 
     printf("[DEBUG link] inserting '](' at pos %zu\n", end);
-    if (markdown_insert(doc, version, end + 2, "](") != 0) return -1;
+    if (markdown_insert(doc, version, end, "](") != 0) return -1;
 
     printf("[DEBUG link] inserting '[' at pos %zu\n", start);
-    if (markdown_insert(doc, version, start + 2, "[") != 0) return -1;
+    if (markdown_insert(doc, version, start, "[") != 0) return -1;
 
-    return 0;
+    char *flat = flatten_staged(doc);
+    if (!flat) return -1;
+
+    printf("[DEBUG link] flat before: %s\n", flat);
+    printf("[DEBUG link] start = %zu, end = %zu, text to wrap = '%.*s'\n",
+        start, end, (int)(end - start), flat + start);
+    free(flat);
+
+    printf("[DEBUG link] inserting ')' at pos %zu\n", end + strlen("](") + strlen(url));
 
     return 0;
 }
@@ -739,7 +749,7 @@ void markdown_increment_version(document *doc) {
 
     int main() {
 // Insert all 3 lines
-       document *doc = markdown_init();
+    document *doc = markdown_init();
     printf("Document initialized\n");
 
     // Insert the initial sentence
@@ -750,7 +760,7 @@ void markdown_increment_version(document *doc) {
     markdown_bold(doc, 1, strlen("I love "), strlen("I love cheeseburgers"));
     markdown_increment_version(doc);
 
-    // Italicize "eese"
+    // Italicize "eese" in cheeseburgers (between ch and se)
     markdown_italic(doc, 2, strlen("I lovch"), strlen("I love cheese"));
     markdown_increment_version(doc);
 
@@ -773,14 +783,14 @@ void markdown_increment_version(document *doc) {
     markdown_insert(doc, 5, bk_pos, "McDonald's");
     markdown_increment_version(doc);
 
-    // Format "McDonald's" as code
+    // Code format "McDonald's"
     markdown_code(doc, 6, bk_pos, bk_pos + strlen("McDonald's"));
     markdown_increment_version(doc);
 
-    // Insert " i'm lovin' it" after '.'
+    // Insert " i'm lovin' it" after "."
     flat = markdown_flatten(doc);
     dot_pos = strchr(flat, '.');
-    insert_pos = dot_pos - flat + 1; // after .
+    insert_pos = dot_pos - flat + 1;
     free(flat);
     markdown_insert(doc, 7, insert_pos, " i'm lovin' it");
     markdown_increment_version(doc);
@@ -808,13 +818,13 @@ void markdown_increment_version(document *doc) {
     markdown_link(doc, 10, love_start, love_end, "https://mcdonalds.com.au/");
     markdown_increment_version(doc);
 
+    // Final output
     char *final = markdown_flatten(doc);
     puts("---- Final Output ----");
     puts(final);
     free(final);
     markdown_free(doc);
     return 0;
-
     /*
     document *doc = markdown_init();
 
