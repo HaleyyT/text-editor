@@ -365,8 +365,6 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
 }
 
 
-
-
 int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
@@ -405,27 +403,11 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     markdown_insert(doc, version, line_start, "> ");
     markdown_insert(doc, version, line_start + 2, cleaned);
 
-    // remove the excessive line after the blockquoted item 
-    size_t surplus_start = line_end + 1;
-    size_t surplus_i = surplus_start;
-    while (isdigit(flat[surplus_i])) surplus_i++;
-
-    if (flat[surplus_i] == '.' && 
-       (flat[surplus_i + 1] == ' ' || flat[surplus_i + 1] == '\n' || flat[surplus_i + 1] == '\0')) {
-        surplus_i += (flat[surplus_i + 1] == ' ') ? 2 : 1;
-
-        size_t surplus_end = surplus_i;
-        while (flat[surplus_end] != '\n' && flat[surplus_end] != '\0') surplus_end++;
-        size_t surplus_len = (flat[surplus_end] == '\n') ? surplus_end - surplus_start + 1 : surplus_end - surplus_start;
-
-        printf("[DEBUG blockquote] Removing ghost line from %zu, length %zu\n", surplus_start, surplus_len);
-        markdown_delete(doc, version, surplus_start, surplus_len);
-    }
-
     free(cleaned);
     free(flat);
     return SUCCESS;
 }
+
 
 
 
@@ -731,32 +713,32 @@ void markdown_increment_version(document *doc) {
 
     int main() {
 // Insert all 3 lines
-document *doc = markdown_init();
+        document *doc = markdown_init();
     printf("Document initialized\n");
 
     markdown_insert(doc, 0, 0, "Task 1\n");
-    printf("Inserted 'Task 1'\n");
     markdown_increment_version(doc);
+    printf("Inserted 'Task 1'\n");
 
     markdown_insert(doc, 1, strlen("Task 1\n"), "Task 2\n");
-    printf("Inserted 'Task 2'\n");
     markdown_increment_version(doc);
+    printf("Inserted 'Task 2'\n");
 
     markdown_insert(doc, 2, strlen("Task 1\nTask 2\n"), "Note\n");
-    printf("Inserted 'Note'\n");
     markdown_increment_version(doc);
+    printf("Inserted 'Note'\n");
 
     markdown_ordered_list(doc, 3, 0);
-    printf("Turned tasks into ordered list\n");
     markdown_increment_version(doc);
+    printf("Turned tasks into ordered list\n");
 
     char *flat = markdown_flatten(doc);
     size_t pos = strstr(flat, "Note") - flat;
     free(flat);
 
     markdown_blockquote(doc, 4, pos);
-    printf("Formatted note as blockquote\n");
     markdown_increment_version(doc);
+    printf("Formatted Note as blockquote\n");
 
     char *final = markdown_flatten(doc);
     puts("---- Final Output ----");
@@ -764,6 +746,7 @@ document *doc = markdown_init();
     free(final);
     markdown_free(doc);
     return 0;
+
 
     /*
     document *doc = markdown_init();
