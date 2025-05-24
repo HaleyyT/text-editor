@@ -558,19 +558,10 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
     return markdown_insert(doc, version, pos, "---\n");
 }
 
+
+
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
-
-    // Construct the pieces of the link
-    char *open_paren = strdup_safe("](");
-    char *url_copy = strdup_safe(url);
-    char *close_paren = strdup_safe(")");
-    char *open_bracket = strdup_safe("[");
-
-    if (!open_paren || !url_copy || !close_paren || !open_bracket) {
-        free(open_paren); free(url_copy); free(close_paren); free(open_bracket);
-        return -1;
-    }
 
 #ifdef DEBUG_MARKDOWN
     char *flat = flatten_staged(doc);
@@ -581,25 +572,28 @@ int markdown_link(document *doc, uint64_t version, size_t start, size_t end, con
 #endif
 
     // Insert in reverse order to preserve positions
-    if (markdown_insert(doc, version, end, open_paren) != 0) goto fail;
-    if (markdown_insert(doc, version, end + strlen(open_paren), url_copy) != 0) goto fail;
-    if (markdown_insert(doc, version, end + strlen(open_paren) + strlen(url_copy), close_paren) != 0) goto fail;
-    if (markdown_insert(doc, version, start, open_bracket) != 0) goto fail;
+    // Step 1: insert closing parenthesis first
+    if (markdown_insert(doc, version, end, ")") != 0) return -1;
+
+    // Step 2: insert the URL
+    if (markdown_insert(doc, version, end, url) != 0) return -1;
+
+    // Step 3: insert the opening paren and closing square bracket
+    if (markdown_insert(doc, version, end, "](") != 0) return -1;
+
+    // Step 4: insert the opening square bracket before start
+    if (markdown_insert(doc, version, start, "[") != 0) return -1;
 
 #ifdef DEBUG_MARKDOWN
+    printf("[DEBUG link] inserted ) at %zu\n", end);
+    printf("[DEBUG link] inserted url at %zu\n", end);
     printf("[DEBUG link] inserted ]( at %zu\n", end);
-    printf("[DEBUG link] inserted url at %zu\n", end + strlen(open_paren));
-    printf("[DEBUG link] inserted ) at %zu\n", end + strlen(open_paren) + strlen(url_copy));
     printf("[DEBUG link] inserted [ at %zu\n", start);
 #endif
 
-    free(open_paren); free(url_copy); free(close_paren); free(open_bracket);
     return 0;
-
-fail:
-    free(open_paren); free(url_copy); free(close_paren); free(open_bracket);
-    return -1;
 }
+
 
 
 // === Utilities ===
@@ -762,74 +756,74 @@ void markdown_increment_version(document *doc) {
     document *doc = markdown_init();
     printf("Document initialized\n");
 
-    // Insert the initial sentence
+    // Version 0 → 1: Insert the initial sentence
     markdown_insert(doc, 0, 0, "I love cheeseburgers.");
     markdown_increment_version(doc);
 
-    // Bold "cheeseburgers"
+    // Version 1 → 2: Bold "cheeseburgers"
     markdown_bold(doc, 1, strlen("I love "), strlen("I love cheeseburgers"));
     markdown_increment_version(doc);
 
-    // Italicize "eese" in cheeseburgers (between ch and se)
+    // Version 2 → 3: Italicize "eese"
     markdown_italic(doc, 2, strlen("I lovch"), strlen("I love cheese"));
     markdown_increment_version(doc);
 
-    // Insert " from BurgerKing" before "."
+    // Version 3 → 4: Insert " from BurgerKing" before "."
     char *flat = markdown_flatten(doc);
-    char *dot_pos = strchr(flat, '.');
-    size_t insert_pos = dot_pos - flat;
+    char *dot = strchr(flat, '.');
+    size_t insert_pos = dot - flat;
     free(flat);
     markdown_insert(doc, 3, insert_pos, " from BurgerKing");
     markdown_increment_version(doc);
 
-    // Delete "BurgerKing"
+    // Version 4 → 5: Delete "BurgerKing"
     flat = markdown_flatten(doc);
     size_t bk_pos = strstr(flat, "BurgerKing") - flat;
     free(flat);
     markdown_delete(doc, 4, bk_pos, strlen("BurgerKing"));
     markdown_increment_version(doc);
 
-    // Insert "McDonald's"
+    // Version 5 → 6: Insert "McDonald's"
     markdown_insert(doc, 5, bk_pos, "McDonald's");
     markdown_increment_version(doc);
 
-    // Code format "McDonald's"
+    // Version 6 → 7: Format "McDonald's" as code
     markdown_code(doc, 6, bk_pos, bk_pos + strlen("McDonald's"));
     markdown_increment_version(doc);
 
-    // Insert " i'm lovin' it" after "."
+    // Version 7 → 8: Insert " i'm lovin' it" after "."
     flat = markdown_flatten(doc);
-    dot_pos = strchr(flat, '.');
-    insert_pos = dot_pos - flat + 1;
+    dot = strchr(flat, '.');
+    insert_pos = dot - flat + 1;
     free(flat);
     markdown_insert(doc, 7, insert_pos, " i'm lovin' it");
     markdown_increment_version(doc);
 
-    // Blockquote "i'm lovin' it"
+    // Version 8 → 9: Blockquote "i'm lovin' it"
     flat = markdown_flatten(doc);
     size_t quote_pos = strstr(flat, "i'm lovin'") - flat;
     free(flat);
     markdown_blockquote(doc, 8, quote_pos);
     markdown_increment_version(doc);
 
-    // Insert horizontal rule after "."
+    // Version 9 → 10: Horizontal rule after '.'
     flat = markdown_flatten(doc);
-    dot_pos = strchr(flat, '.');
-    insert_pos = dot_pos - flat + 1;
+    dot = strchr(flat, '.');
+    insert_pos = dot - flat + 1;
     free(flat);
     markdown_horizontal_rule(doc, 9, insert_pos);
     markdown_increment_version(doc);
 
-    // Linkify "love" to https://mcdonalds.com.au/
-    flat = markdown_flatten(doc);
-    size_t love_start = strstr(flat, "love") - flat;
-    size_t love_end = love_start + strlen("love");
+    // Version 10 → 11: Linkify "love" (compute from base_flat to avoid shifting bug)
+    ensure_shared_flat_initialized(doc); // sets base_flat
+    flat = strdup_safe(base_flat);       // clean committed state
+    char *start_ptr = strstr(flat, "love");
+    size_t start = start_ptr - flat;
+    size_t end = start + strlen("love");
+    printf("[DEBUG main] love starts at %zu, ends at %zu, text: '%.*s'\n", start, end, (int)(end - start), start_ptr);
     free(flat);
-    markdown_link(doc, 10, love_start, love_end, "https://mcdonalds.com.au/");
+    markdown_link(doc, 10, start, end, "https://mcdonalds.com.au/");
     markdown_increment_version(doc);
-    printf("[DEBUG main] love starts at %zu, ends at %zu, text: '%.*s'\n",
-        love_start, love_end, (int)(love_end - love_start), flat + love_start);
-
 
     // Final output
     char *final = markdown_flatten(doc);
