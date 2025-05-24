@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/types.h>
 
 typedef enum { EDIT_INSERT, EDIT_DELETE } edit_type;
 
