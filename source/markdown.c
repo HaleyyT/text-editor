@@ -492,7 +492,23 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 
 
 
-for (size_t i = pos; i < len;) {
+int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
+    if (!doc || doc->version != version) return -1;
+
+    if (!doc->staged_head) {
+        doc->staged_head = deep_copy_chunks(doc->head);
+        if (!doc->staged_head) return -1;
+    }
+
+    char *str_flat = flatten_staged(doc);
+    if (!str_flat) return -1;
+
+    size_t len = strlen(str_flat);
+    size_t shift = 0;
+
+    printf("staged content before list formatting: \n%s\n", str_flat);
+
+    for (size_t i = pos; i < len;) {
     size_t insert_at = i + shift;
 
     // Insert \n before "- " if not already on a new line
@@ -517,6 +533,14 @@ for (size_t i = pos; i < len;) {
     // Move to next line
     while (i < len && str_flat[i] != '\n') i++;
     i++; // move past \n (even if it wasn't originally there)
+}
+
+    char *check = flatten_staged(doc);
+    printf("Staged content after list formatting:\n%s\n", check);
+    free(check);
+
+    free(str_flat);
+    return SUCCESS;
 }
 
 
