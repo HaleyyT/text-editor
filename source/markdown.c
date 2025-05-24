@@ -500,22 +500,21 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     char *flat = strdup_safe(base_flat);
     if (!flat) return -1;
 
+    // Rewind to start of line
     size_t insert_pos = pos;
-    // Rewind to start of the line (or full string)
     while (insert_pos > 0 && flat[insert_pos - 1] != '\n') {
         insert_pos--;
     }
 
-    // Step 1: if not at start, and previous char isn’t a newline, insert \n
+    // Check if already at line start
     if (insert_pos != 0 && flat[insert_pos - 1] != '\n') {
         if (markdown_insert(doc, version, insert_pos, "\n") != 0) {
             free(flat);
             return -1;
         }
-        insert_pos++;  // shift due to \n
+        insert_pos++;
     }
 
-    // Step 2: insert "- " at that line start
     if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
         free(flat);
         return -1;
@@ -524,6 +523,7 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     free(flat);
     return 0;
 }
+
 
 
 
