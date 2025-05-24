@@ -492,40 +492,31 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 
 
 
-int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
-    if (!doc || doc->version != version) return -1;
+for (size_t i = pos; i < len;) {
+    size_t insert_at = i + shift;
 
-    ensure_shared_flat_initialized(doc);
-    if (!base_flat) return -1;
-
-    char *base = strdup_safe(base_flat);
-    if (!base) return -1;
-
-    // Rewind to line start
-    size_t insert_pos = pos;
-    while (insert_pos > 0 && base[insert_pos - 1] != '\n') {
-        insert_pos--;
-    }
-
-    // Always insert newline if not at start
-    if (insert_pos != 0) {
-        if (markdown_insert(doc, version, insert_pos, "\n") != 0) {
-            free(base);
+    // Insert \n before "- " if not already on a new line
+    if (insert_at != 0 && str_flat[insert_at - 1] != '\n') {
+        if (markdown_insert(doc, version, insert_at, "\n") != 0) {
+            printf("fail to insert newline at position: %zu\n", insert_at);
+            free(str_flat);
             return -1;
         }
-        insert_pos++;
+        insert_at++;
+        shift++;
     }
 
-    // Insert "- " at the start of the new line
-    if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
-        free(base);
+    printf("Inserting \"- \" at position: %zu\n", insert_at);
+    if (markdown_insert(doc, version, insert_at, "- ") != 0) {
+        printf("fail to insert - sign at position: %zu\n", insert_at);
+        free(str_flat);
         return -1;
     }
+    shift += 2;
 
-    printf("[DEBUG unordered_list] inserted \"- \" at pos %zu (from input %zu)\n", insert_pos, pos);
-
-    free(base);
-    return 0;
+    // Move to next line
+    while (i < len && str_flat[i] != '\n') i++;
+    i++; // move past \n (even if it wasn't originally there)
 }
 
 
