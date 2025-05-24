@@ -494,63 +494,30 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 
 
 
-
-
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
     ensure_shared_flat_initialized(doc);
     if (!base_flat) return -1;
 
-    // Work from base_flat (deferred editing rule)
+    // Always work from the base document for deferred semantics
     char *base = strdup_safe(base_flat);
     if (!base) return -1;
 
-    size_t len = strlen(base);
-    size_t *insert_positions = malloc(sizeof(size_t) * (len + 1));
-    if (!insert_positions) {
-        free(base);
-        return -1;
-    }
-
-    size_t count = 0;
-
-    // Step 1: rewind to the beginning of the line at pos
+    // Rewind to the beginning of the line
     size_t start = pos;
     while (start > 0 && base[start - 1] != '\n') {
         start--;
     }
 
-    // Step 2: record positions at the start of each line from there
-    insert_positions[count++] = start;
-
-    for (size_t i = start; i < len; i++) {
-        if (base[i] == '\n' && i + 1 < len) {
-            insert_positions[count++] = i + 1;
-        }
-    }
-
-    // Step 3: insert "- " from last line to first (to preserve positions)
-    for (int i = (int)count - 1; i >= 0; i--) {
-        size_t insert_pos = insert_positions[i];
-        printf("[DEBUG unordered_list] inserting \"- \" at pos %zu\n", insert_pos);
-        if (markdown_insert(doc, version, insert_pos, "- ") != 0) {
-            printf("Failed to insert '- ' at %zu\n", insert_pos);
-            free(base);
-            free(insert_positions);
-            return -1;
-        }
-    }
+    // Only insert "- " at that one line start
+    printf("[DEBUG unordered_list] inserting \"- \" at pos %zu (computed from input pos %zu)\n", start, pos);
+    int result = markdown_insert(doc, version, start, "- ");
 
     free(base);
-    free(insert_positions);
-
-    char *debug = flatten_staged(doc);
-    printf("[DEBUG unordered_list] staged:\n%s\n", debug);
-    free(debug);
-
-    return SUCCESS;
+    return result;
 }
+
 
 
 
