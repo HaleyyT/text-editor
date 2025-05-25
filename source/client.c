@@ -78,10 +78,10 @@ int main(int argc, char *argv[]) {
 
     // Otherwise, print response as EDIT lines
     char *saveptr;
-    char *line = strtok_r(buf, "\n", &saveptr);
+    char *line = strtok(buf, "\n", &saveptr);
     while (line) {
         printf("EDIT %s\n", line);
-        line = strtok_r(NULL, "\n", &saveptr);
+        line = strtok(NULL, "\n", &saveptr);
     }
 
     return 0;
