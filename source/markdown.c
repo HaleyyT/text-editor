@@ -374,7 +374,6 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     char *flat = strdup_safe(base_flat);
     if (!flat) return -1;
 
-    size_t len = strlen(flat);
     size_t line_start = pos;
     while (line_start > 0 && flat[line_start - 1] != '\n') {
         line_start--;

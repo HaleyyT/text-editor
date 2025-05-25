@@ -42,7 +42,24 @@ int main(int argc, char *argv[]) {
     ssize_t bytes = read(client_fd, buf, sizeof(buf));
     if (bytes > 0) {
         buf[bytes] = '\0';
-        printf("%s", buf);
+
+        char *line = strtok(buf, "\n");
+        int content_section = 0;
+        while (line) {
+            if (strncmp(line, "role:", 5) == 0 ||
+                strncmp(line, "version:", 8) == 0 ||
+                strncmp(line, "length:", 7) == 0) {
+                line = strtok(NULL, "\n");
+                content_section = 1; // Skip headers
+                continue;
+            }
+
+            if (content_section) {
+                printf("EDIT %s\n", line);
+            }
+
+            line = strtok(NULL, "\n");
+        }
     }
 
     close(client_fd);
