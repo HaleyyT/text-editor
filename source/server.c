@@ -1,4 +1,3 @@
-// TODO: server code that manages the document and handles client instructions
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -6,67 +5,77 @@
 #include <sys/stat.h>
 #include <string.h>
 #include "../libs/ipc.h"
-#include "markdown.h" // for the document functions
+#include "markdown.h" // Required for markdown editing operations
 
 #define SERVER_FIFO "markdown_server"
 
+/**
+ * Main server loop to accept edit requests from clients via FIFO.
+ * Manages a shared markdown document state and returns the result to clients.
+ */
 int main(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+
+    // Always unlink server FIFO on startup to avoid stale state
     unlink(SERVER_FIFO);
-    (void)argc; (void)argv;
 
     printf("Server starting...\n");
 
-    // Create server FIFO if it doesn't exist
+    // Create named pipe if it doesn't exist
     if (mkfifo(SERVER_FIFO, 0666) == -1) {
-        perror("mkfifo");
-        // May already exist, so continue
+        perror("mkfifo"); // Might already exist, continue running
     }
 
+    // Open FIFO for reading edit requests
     int server_fd = open(SERVER_FIFO, O_RDONLY);
     if (server_fd < 0) {
         perror("open server fifo");
         return 1;
     }
 
+    // Initialize shared document
     document *doc = markdown_init();
 
     while (1) {
         edit_request req;
         ssize_t bytes = read(server_fd, &req, sizeof(req));
-        if (bytes <= 0) continue;
+        if (bytes <= 0) continue; // Retry on empty or failed read
 
+        // === NEW FIX: Properly handle DISCONNECT request ===
         if (strcmp(req.command, "DISCONNECT") == 0) {
+            // Open client FIFO for writing reply
+            int client_fd = open(req.client_fifo, O_WRONLY);
+            if (client_fd >= 0) {
+                char *flat = markdown_flatten(doc);
 
-        // Clean up client FIFO or perform acknowledgment
-        //FIFO stil open and respond
-        int client_fd = open(req.client_fifo, O_WRONLY);
-        if (client_fd >= 0) {
-            // You can just send an empty string or "DISCONNECTED"
-            char *flat = markdown_flatten(doc);
-            char response[4096];
-            snprintf(response, sizeof(response),
-                    "role:editor\nversion:%llu\nlength:%zu\n%s",
-                    doc->version, strlen(flat), flat);
-            write(client_fd, response, strlen(response) + 1);
-            free(flat);
-            close(client_fd);
+                // Format response to match expected test format
+                char response[4096];
+                snprintf(response, sizeof(response),
+                         "role:editor\nversion:%llu\nlength:%zu\n%s",
+                         (unsigned long long)doc->version, strlen(flat), flat);
+
+                write(client_fd, response, strlen(response) + 1);
+                free(flat);
+                close(client_fd);
+            }
+
+            // Print disconnect event for debug
+            printf("[SERVER] Client %s disconnected\n", req.client_fifo);
+            continue; // Stay alive for other clients
         }
+        // === END FIX ===
 
-        printf("[SERVER] Client %s disconnected\n", req.client_fifo);
-        continue; // or retur22n, if you're exiting the thread
-        return 0;
-    }
-
-
+        // Log received request
         printf("Received request: %s at %zu: %s\n", req.command, req.pos, req.text);
 
-        // Example: insert
+        // Process insert operation
         if (strcmp(req.command, "insert") == 0) {
             markdown_insert(doc, doc->version, req.pos, req.text);
-            markdown_increment_version(doc);
+            markdown_increment_version(doc); // Commit change to document
         }
 
-        // Send response to client
+        // Reply with updated document state
         int client_fd = open(req.client_fifo, O_WRONLY);
         if (client_fd < 0) {
             perror("open client fifo");
@@ -76,15 +85,16 @@ int main(int argc, char *argv[]) {
         char *flat = markdown_flatten(doc);
         char response[4096];
         snprintf(response, sizeof(response),
-                "role:editor\nversion:%llu\nlength:%zu\n%s",
-                doc->version, strlen(flat), flat);
+                 "role:editor\nversion:%llu\nlength:%zu\n%s",
+                 (unsigned long long)doc->version, strlen(flat), flat);
+
         write(client_fd, response, strlen(response) + 1);
         close(client_fd);
         free(flat);
     }
 
+    // Cleanup on shutdown
     markdown_free(doc);
     unlink(SERVER_FIFO);
     return 0;
 }
-
