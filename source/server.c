@@ -11,6 +11,7 @@
 #define SERVER_FIFO "markdown_server"
 
 int main(int argc, char *argv[]) {
+    unlink(SERVER_FIFO);
     (void)argc; (void)argv;
 
     printf("Server starting...\n");
@@ -36,7 +37,7 @@ int main(int argc, char *argv[]) {
 
         if (strcmp(req.command, "DISCONNECT") == 0) {
         // Clean up client FIFO or perform acknowledgment
-        // You must still open their FIFO and respond
+        //FIFO stil open and respond
 
         int client_fd = open(req.client_fifo, O_WRONLY);
         if (client_fd >= 0) {
@@ -52,7 +53,7 @@ int main(int argc, char *argv[]) {
         }
 
         printf("[SERVER] Client %s disconnected\n", req.client_fifo);
-        continue; // or return, if you're exiting the thread
+        continue; // or retur22n, if you're exiting the thread
     }
 
 

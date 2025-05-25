@@ -14,55 +14,74 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Create a unique FIFO name for this client using PID
     char client_fifo[128];
     snprintf(client_fifo, sizeof(client_fifo), "client_fifo_%d", getpid());
-    mkfifo(client_fifo, 0666);
+    if (mkfifo(client_fifo, 0666) == -1) {
+        perror("mkfifo client");
+        return 1;
+    }
 
+    // Fill the request
     edit_request req = {0};
     strcpy(req.client_fifo, client_fifo);
-    strcpy(req.command, argv[1]);
+    strncpy(req.command, argv[1], sizeof(req.command) - 1);
 
     if (strcmp(req.command, "insert") == 0) {
         if (argc < 4) {
             fprintf(stderr, "Usage: %s insert <pos> <text>\n", argv[0]);
+            unlink(client_fifo);
             return 1;
         }
-        req.pos = atoi(argv[2]);
+        req.pos = (size_t)atoi(argv[2]);
         strncpy(req.text, argv[3], sizeof(req.text) - 1);
     }
 
-    // Send request
+    // Send request to server
     int server_fd = open(SERVER_FIFO, O_WRONLY);
-    write(server_fd, &req, sizeof(req));
-    close(server_fd);
-
-    // Read response
-    int client_fd = open(client_fifo, O_RDONLY);
-    char buf[4096];
-    ssize_t bytes = read(client_fd, buf, sizeof(buf));
-    if (bytes > 0) {
-        buf[bytes] = '\0';
-
-        char *line = strtok(buf, "\n");
-        int content_section = 0;
-        while (line) {
-            if (strncmp(line, "role:", 5) == 0 ||
-                strncmp(line, "version:", 8) == 0 ||
-                strncmp(line, "length:", 7) == 0) {
-                line = strtok(NULL, "\n");
-                content_section = 1; // Skip headers
-                continue;
-            }
-
-            if (content_section) {
-                printf("EDIT %s\n", line);
-            }
-
-            line = strtok(NULL, "\n");
-        }
+    if (server_fd < 0) {
+        perror("open server FIFO");
+        unlink(client_fifo);
+        return 1;
     }
 
+    if (write(server_fd, &req, sizeof(req)) != sizeof(req)) {
+        perror("write request");
+        close(server_fd);
+        unlink(client_fifo);
+        return 1;
+    }
+
+    close(server_fd);
+
+    // Read server response
+    int client_fd = open(client_fifo, O_RDONLY);
+    if (client_fd < 0) {
+        perror("open client FIFO");
+        unlink(client_fifo);
+        return 1;
+    }
+
+    char buf[4096];
+    ssize_t bytes = read(client_fd, buf, sizeof(buf) - 1);
     close(client_fd);
     unlink(client_fifo);
+
+    if (bytes <= 0) return 0;
+
+    buf[bytes] = '\0';
+
+    // If DISCONNECT, just exit silently
+    if (strcmp(req.command, "DISCONNECT") == 0) {
+        return 0;
+    }
+
+    // Otherwise, print response as EDIT lines
+    char *line = strtok(buf, "\n");
+    while (line) {
+        printf("EDIT %s\n", line);
+        line = strtok(NULL, "\n");
+    }
+
     return 0;
 }
