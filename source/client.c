@@ -14,19 +14,21 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Create a unique FIFO name for this client using PID
+    // 1) Create a unique FIFO name for this client using PID
     char client_fifo[128];
     snprintf(client_fifo, sizeof(client_fifo), "client_fifo_%d", getpid());
+    // Attempt to create FIFO for client
     if (mkfifo(client_fifo, 0666) == -1) {
         perror("mkfifo client");
         return 1;
     }
 
-    // Fill the request
+    //Prepare request structure
     edit_request req = {0};
     strcpy(req.client_fifo, client_fifo);
     strncpy(req.command, argv[1], sizeof(req.command) - 1);
 
+    // If the command is "insert", expect two additional args: position and text
     if (strcmp(req.command, "insert") == 0) {
         if (argc < 4) {
             fprintf(stderr, "Usage: %s insert <pos> <text>\n", argv[0]);
@@ -37,7 +39,7 @@ int main(int argc, char *argv[]) {
         strncpy(req.text, argv[3], sizeof(req.text) - 1);
     }
 
-    // Send request to server
+    // 3) Send request to server
     int server_fd = open(SERVER_FIFO, O_WRONLY);
     if (server_fd < 0) {
         perror("open server FIFO");
@@ -52,9 +54,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    close(server_fd);
+    close(server_fd); //finish sending request 
 
-    // Read server response
+    // 4) Read server response
     int client_fd = open(client_fifo, O_RDONLY);
     if (client_fd < 0) {
         perror("open client FIFO");
@@ -76,7 +78,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // Otherwise, print response as EDIT lines
+    // otherwise, print response as EDIT lines
     char *line = strtok(buf, "\n");
     while (line) {
         printf("EDIT %s\n", line);

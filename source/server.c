@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Initialize shared document
+    // Initialise shared document
     document *doc = markdown_init();
 
     while (1) {
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
         ssize_t bytes = read(server_fd, &req, sizeof(req));
         if (bytes <= 0) continue; // Retry on empty or failed read
 
-        // === NEW FIX: Properly handle DISCONNECT request ===
+        //handle DISCONNECT request
         if (strcmp(req.command, "DISCONNECT") == 0) {
             // Open client FIFO for writing reply
             int client_fd = open(req.client_fifo, O_WRONLY);
