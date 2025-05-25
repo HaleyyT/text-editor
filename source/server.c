@@ -41,7 +41,13 @@ int main(int argc, char *argv[]) {
         int client_fd = open(req.client_fifo, O_WRONLY);
         if (client_fd >= 0) {
             // You can just send an empty string or "DISCONNECTED"
-            write(client_fd, "DISCONNECTED", strlen("DISCONNECTED") + 1);
+            char *flat = markdown_flatten(doc);
+            char response[4096];
+            snprintf(response, sizeof(response),
+                    "role:editor\nversion:%llu\nlength:%zu\n%s",
+                    doc->version, strlen(flat), flat);
+            write(client_fd, response, strlen(response) + 1);
+            free(flat);
             close(client_fd);
         }
 
@@ -66,7 +72,11 @@ int main(int argc, char *argv[]) {
         }
 
         char *flat = markdown_flatten(doc);
-        write(client_fd, flat, strlen(flat) + 1);
+        char response[4096];
+        snprintf(response, sizeof(response),
+                "role:editor\nversion:%llu\nlength:%zu\n%s",
+                doc->version, strlen(flat), flat);
+        write(client_fd, response, strlen(response) + 1);
         close(client_fd);
         free(flat);
     }
