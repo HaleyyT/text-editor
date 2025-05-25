@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include "../libs/ipc.h"
-#include "markdown.h" // Required for markdown editing operations
+#include "markdown.h" 
 
 #define SERVER_FIFO "markdown_server"
 
@@ -98,7 +98,6 @@ int main(int argc, char *argv[]) {
         free(flat);
     }
     
-
     // Cleanup on shutdown
     markdown_free(doc);
     unlink(SERVER_FIFO);

@@ -5,7 +5,6 @@
 #include <sys/types.h>
 
 
-
 static edit *edit_queue = NULL;
 static char *shared_flat = NULL;
 static char *base_flat = NULL; 
@@ -13,8 +12,8 @@ static uint64_t flat_version = (uint64_t)(-1);
 #define SUCCESS 0 
 
 
-
 // === Init and Free ===
+
 document *markdown_init(void) {
     document* new_doc = malloc(sizeof(document));
     if (new_doc == NULL) {
@@ -29,7 +28,6 @@ document *markdown_init(void) {
 void markdown_free(document *doc) {
     if (!doc) return;
 
-    //create a chunk ptr - curr 
     chunk *curr = doc->head;
     while (curr){
         chunk *next = curr->next;
@@ -38,7 +36,7 @@ void markdown_free(document *doc) {
         curr = next;
     }
 
-    //Use the pointer to traverse through staged_head and free it as well
+    //Traverse through staged_head and free 
     curr = doc->staged_head;
     while (curr) {
         chunk *next = curr->next;
@@ -50,6 +48,9 @@ void markdown_free(document *doc) {
     free(doc);
 }
 
+/*
+* Functions strdup_safe and strndup_safe to copy the content safely
+*/
 char *strdup_safe(const char *s) {
     size_t len = strlen(s);
     char *copy = malloc(len + 1);
@@ -71,7 +72,6 @@ char *strndup_safe(const char *s, size_t n) {
 
 
 //Helper function: create deep copy of chunks
-//CALLER FREE MEMO
 chunk *deep_copy_chunks(chunk *head) {
     if (!head) {
         // Create a dummy empty chunk
@@ -89,6 +89,7 @@ chunk *deep_copy_chunks(chunk *head) {
     chunk *new_head = malloc(sizeof(chunk));
     if (!new_head) return NULL;
 
+    //copy content from head into new_head 
     new_head->text = strdup_safe(head->text);
     if (!new_head->text) {
         free(new_head);
@@ -100,7 +101,11 @@ chunk *deep_copy_chunks(chunk *head) {
 }
 
 
-
+/*
+ * Helper: Ensures that the shared edit buffer shared_flat is initialised
+ * for the current version, allowing deferred edits to be staged
+ * against a consistent snapshot base_flat of the document.
+ */
 void ensure_shared_flat_initialized(document *doc) {
     if (flat_version == doc->version) {
         // already initialized for this version
@@ -144,56 +149,6 @@ void ensure_shared_flat_initialized(document *doc) {
 }
 
 
-/*
-
-int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
-    if (!doc || doc->version != version || len == 0) return -1;
-
-    ensure_shared_flat_initialized(doc);
-    if (!shared_flat) return -1;
-
-    size_t total_len = strlen(shared_flat);
-    if (pos >= total_len) return -1;
-
-    size_t actual_len = (pos + len > total_len) ? total_len - pos : len;
-    size_t new_len = total_len - actual_len;
-
-    char *new_flat = malloc(new_len + 1);
-    if (!new_flat) return -1;
-
-    memcpy(new_flat, shared_flat, pos);
-    memcpy(new_flat + pos, shared_flat + pos + actual_len, total_len - pos - actual_len);
-    new_flat[new_len] = '\0';
-
-    free(shared_flat);
-    shared_flat = new_flat;
-
-    printf("[DEBUG markdown_delete] shared_flat after = \"%s\"\n", shared_flat);
-
-    // Rebuild staged_head
-    chunk *new_chunk = malloc(sizeof(chunk));
-    if (!new_chunk) return -1;
-    new_chunk->text = strdup_safe(shared_flat);
-    if (!new_chunk->text) {
-        free(new_chunk);
-        return -1;
-    }
-    new_chunk->next = NULL;
-
-    chunk *curr = doc->staged_head;
-    while (curr) {
-        chunk *next = curr->next;
-        free(curr->text);
-        free(curr);
-        curr = next;
-    }
-
-    doc->staged_head = new_chunk;
-    return 0;
-}
-*/
-
-
 //Helper function to retrieve a string presentation of doc in its staged version
 char *flatten_staged(const document *doc) {
     if (!doc || !doc->staged_head) return strdup_safe("");
@@ -202,8 +157,11 @@ char *flatten_staged(const document *doc) {
 }
 
 
-
-
+/**
+ * Insert directly to the shared_flat string at the position.
+ * Used after version increment to update the shared copy of shared_flat with inserted content
+ * It rebuilds staged_head based on the modified flat string.
+*/
 int apply_flat_insert(document *doc, size_t pos, const char *content) {
     if (!doc || !shared_flat || !content) return -1;
 
@@ -217,11 +175,12 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
         pos = len;
         printf("%s", "[DEBUG apply_flat_insert] pos > len, FIX RANGE\n");
     }
-
+    // Clamp insertion position if it goes beyond current buffer
     size_t new_len = len + insert_len;
     char *new_doc = malloc(new_len + 1);
     if (!new_doc) return -1;
 
+    // copy parts before, content to insert, and parts after into new buffer
     memcpy(new_doc, shared_flat, pos);
     memcpy(new_doc + pos, content, insert_len);
     memcpy(new_doc + pos + insert_len, shared_flat + pos, len - pos);
@@ -230,7 +189,7 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
     free(shared_flat);
     shared_flat = new_doc;
 
-    // Rebuild staged_head from updated shared_flat
+    // Rebuild staged_head, the new chunk contains updated content of shared_flat
     chunk *new_chunk = malloc(sizeof(chunk));
     if (!new_chunk) return -1;
     new_chunk->text = strdup_safe(shared_flat);
@@ -257,8 +216,13 @@ int apply_flat_insert(document *doc, size_t pos, const char *content) {
 
 
 
-
-// === Edit Commands ===
+/**
+ * Stages an insert operation in the document at the given version
+ * 
+ * The insert is deferred and stored in an edit queue, and will only be applied
+ * when`markdown_increment_version() is called. This allows multiple changes
+ * to be grouped and committed together.
+ */
 int markdown_insert(document *doc, uint64_t version, size_t pos, const char *content) {
     if (!doc || doc->version != version || !content) return -1;
 
@@ -276,13 +240,20 @@ int markdown_insert(document *doc, uint64_t version, size_t pos, const char *con
 
 
 // === Formatting Commands ===
+
+//Insert a newline character at the given position
 int markdown_newline(document *doc, size_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
     return markdown_insert(doc, version, pos, "\n");
 }
 
-
+/**
+ * Insert a heading format at the given position
+ * 
+ * Converts the line at the given position into a heading by prepending it with
+ * level number of '#'. The change is staged and will appear in next version increment
+ */
 int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) {
     if (!doc || doc->version != version || level < 1 || level > 6) return -1;
 
@@ -299,6 +270,14 @@ int markdown_heading(document *doc, uint64_t version, size_t level, size_t pos) 
     return markdown_insert(doc, version, pos, prefix);
 }
 
+
+
+/**
+ * Stages bold formatting for the specified range of text in the document.
+ *
+ * This function wraps the text "**" at start and end of the text.
+ * The formatting is staged and applied when incrementing version
+*/
 int markdown_bold(document *doc, uint64_t version, size_t start, size_t end) {
     if (!doc || doc->version != version || start >= end) return -1;
 
@@ -307,10 +286,13 @@ int markdown_bold(document *doc, uint64_t version, size_t start, size_t end) {
         if (!doc->staged_head) return -1;
     }
 
+    // Insert "**" at the end first to avoid shifting start position
     if (markdown_insert(doc, version, end, "**") != 0) {
         printf("%s", "make bold text fail");
         return -1;
     }
+    
+    // Insert "**" at the start position 
     if (markdown_insert(doc, version, start, "**") != 0) {
         printf("%s", "make bold text fail");
         return -1;
@@ -320,6 +302,12 @@ int markdown_bold(document *doc, uint64_t version, size_t start, size_t end) {
 }
 
 
+/**
+ * Stages a delete operation that removes "len" characters starting at "pos"
+ *
+ * The deletion is deferred and added to the edit queue, which will be applied
+ * when the document version is incremented. It allows safe sequencing with other edits.
+*/
 int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
     if (!doc || doc->version != version || len == 0) return -1;
 
@@ -334,6 +322,11 @@ int markdown_delete(document *doc, uint64_t version, size_t pos, size_t len) {
     return 0;
 }
 
+
+/**
+ * Formatting italic text by inserting "*" the specified range of text
+ * Wraps a single asterisks "*" at start and end position.
+ */
 int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
     if (!doc || doc->version != version || start >= end) return -1;
 
@@ -349,6 +342,8 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
         printf("%s", "ITALIC: unable to italicise");
         return -1; 
     }
+
+    // Insert "*" at the start position 
     if (markdown_insert(doc, version, start, "*") != 0) {
         printf("%s", "ITALIC: unable to italicise");
         return -1; 
@@ -356,6 +351,15 @@ int markdown_italic(document *doc, uint64_t version, size_t start, size_t end) {
     return SUCCESS;
 }
 
+
+/**
+ * Converts the line at the given position into a blockquote.
+ *
+ * Finds the start of the line containing "pos", remove if there is prefix, 
+ * and prepends it with the blockquote "> ". 
+ * If not already on a newline, it inserts one before the blockquote.
+ * All changes are staged and applied at version increment.
+*/
 int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
@@ -370,7 +374,7 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
         line_start--;
     }
 
-    // Skip digits like "3. "
+    // Skip teh prefix 
     size_t i = line_start;
     while (isdigit(flat[i])) i++;
     if (flat[i] == '.' && flat[i + 1] == ' ') {
@@ -401,6 +405,7 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
         return -1;
     }
 
+    //inserts newline before the blockquote if it does not have
     if (line_start != 0 && flat[line_start - 1] != '\n') {
         if (markdown_insert(doc, version, line_start, "\n") != 0) {
             printf("[DEBUG blockquote] Failed insert newline before blockquote\n");
@@ -408,9 +413,10 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
             free(cleaned);
             return -1;
         }
-        line_start += 1;  // shift right because we inserted a char
+        line_start += 1;  // shift right because inserted a char
     }
 
+    //insert thethe blockquote "> " at the start of the line 
     if (markdown_insert(doc, version, line_start, "> ") != 0) {
         printf("[DEBUG blockquote] Failed insert '> '\n");
         free(flat);
@@ -431,10 +437,12 @@ int markdown_blockquote(document *doc, uint64_t version, size_t pos) {
 }
 
 
-
-
-
-
+/**
+ * Converts multiple lines starting at a given position into an ordered list.
+ * 
+ * This function adds numeric prefixes to each line at the specified position. 
+ * It iterates through staged content, detects line breaks, and inserts the appropriate prefix.
+ */
 int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
@@ -448,8 +456,9 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 
     while (1) {
         char prefix[16];
-        snprintf(prefix, sizeof(prefix), "%d. ", index);  // e.g., "1. ", "2. "
+        snprintf(prefix, sizeof(prefix), "%d. ", index); 
 
+        //insert the prefix at the position 
         if (markdown_insert(doc, version, offset, prefix) != 0) return -1;
 
         offset += strlen(prefix);
@@ -482,9 +491,17 @@ int markdown_ordered_list(document *doc, uint64_t version, size_t pos) {
 
 
 
+/**
+ * Converts multiple lines starting at the given position into an unordered list.
+ * 
+ * This function inserts "- " at the start of each line found in the staged document,
+ * It ensures each insertion occurs at the beginning of a line, 
+ * optionally inserting a newline if necessary to preserve line alignment.
+ */
 int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
+    //copy the head chunk into staged_head
     if (!doc->staged_head) {
         doc->staged_head = deep_copy_chunks(doc->head);
         if (!doc->staged_head) return -1;
@@ -512,6 +529,7 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
         shift++;
     }
 
+    //inserting "- " at at pos
     printf("Inserting \"- \" at position: %zu\n", insert_at);
     if (markdown_insert(doc, version, insert_at, "- ") != 0) {
         printf("fail to insert - sign at position: %zu\n", insert_at);
@@ -522,7 +540,7 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
 
     // Move to next line
     while (i < len && str_flat[i] != '\n') i++;
-    i++; // move past \n (even if it wasn't originally there)
+    i++; // move past \n 
 }
 
     char *check = flatten_staged(doc);
@@ -534,12 +552,10 @@ int markdown_unordered_list(document *doc, uint64_t version, size_t pos) {
 }
 
 
-
-
-
-
-
-
+/**
+ * Formats a range of text as inline code using backticks.
+ * Wraps the text between start and end with a single backtick character (`).
+ */
 int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
     if (!doc || doc->version != version || start >= end) {
         printf("%s"," Markdown_code: conditions not met \n");
@@ -551,11 +567,13 @@ int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
         if (!doc->staged_head) return -1;
     }
 
-    // Insert opening backtick first
+    // Insert opening backtick first to prevent shifting
     if (markdown_insert(doc, version, end, "`") != 0) {
         printf("%s"," Markdown_code: fail inserting ' at end \n");
         return -1;
     }
+
+    //Insert backtick at the start position 
     if (markdown_insert(doc, version, start, "`") != 0) {
         printf("%s"," Markdown_code: fail inserting ' at start \n");
         return -1;
@@ -564,7 +582,11 @@ int markdown_code(document *doc, uint64_t version, size_t start, size_t end) {
 }
 
 
-
+/**
+ * Inserts a horizontal rule (---) at the specified position.
+ * Ensures a horizontal rule is placed on a separate line by 
+ * inserting newlines before and after if necessary.
+ */
 int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
     if (!doc || doc->version != version) return -1;
 
@@ -590,7 +612,10 @@ int markdown_horizontal_rule(document *doc, uint64_t version, size_t pos) {
 }
 
 
-
+/**
+ * Wraps a substring in a hyperlink format "[text](url)". 
+ * Insert in reverse order to maintain correct position under deferred semantics. 
+ */
 int markdown_link(document *doc, uint64_t version, size_t start, size_t end, const char *url) {
     if (!doc || doc->version != version || start >= end || !url) return -1;
 
@@ -608,7 +633,6 @@ int markdown_link(document *doc, uint64_t version, size_t start, size_t end, con
     if (strncmp(flat + start, "love", 4) != 0) {
         printf("[DEBUG link] Warning: link range does not match expected word 'love'\n");
     }
-
     free(flat);
 
     // Apply in reverse order to preserve index integrity
@@ -634,6 +658,13 @@ void markdown_print(const document *doc, FILE *stream) {
 }
 
 
+/**
+ * Flattens the committed version of the document into a single string.
+ *
+ * Traverses the linked list of chunks in the "head" field and concatenates
+ * contents into a new allocated string. Used for generating output or 
+ * computing positions for future edits. This function reflects the committed state.
+ */
 char *markdown_flatten(const document *doc) {
     if (!doc || !doc->head) return strdup_safe("");
 
@@ -656,17 +687,28 @@ char *markdown_flatten(const document *doc) {
 
 
 // === Versioning ===
+/**
+ * Comparator used to sort insert edits in ascending position order.
+ * Used when applying edits in a consistent order, ensures that earlier 
+ * insertions are applied first to maintain semantic correctness.
+ */
 int compare_insert(const void *a, const void *b) {
     const edit *ea = *(const edit **)a;
     const edit *eb = *(const edit **)b;
     return (int)(ea->pos - eb->pos);
 }
 
+/**
+ * Comparator used to sort delete edits in descending position order.
+ * Reversing the delete order ensures that subsequent deletes don't shift the
+ * positions of earlier ones, which would corrupt range of edits.
+ */
 int compare_delete(const void *a, const void *b) {
     const edit *ea = *(const edit **)a;
     const edit *eb = *(const edit **)b;
     return (int)(eb->pos - ea->pos);  // reverse order
 }
+
 // Helper: count edits
 static int count_edits(edit *e) {
     int count = 0;
@@ -674,18 +716,24 @@ static int count_edits(edit *e) {
     return count;
 }
 
-// Apply all edits
+
+/*
+ * Commits all staged edits into the document.
+ * First applies deletions in reverse order.
+ * Then applies insertions in ascending order, adjusting for offset.
+ * Updates head and resets the staging buffer and edit queue.
+ */
 void markdown_increment_version(document *doc) {
     if (!doc) return;
 
     printf("INC_VERSION: Committing staged to head\n");
 
-    // Snapshot base
+    // Snapshot the current commited state
     if (base_flat) free(base_flat);
     base_flat = markdown_flatten(doc);
     if (!base_flat) return;
 
-    // --- Apply deletes (already OK) ---
+    // Prepare the flat representation to apply edits on
     if (shared_flat) free(shared_flat);
     shared_flat = strdup_safe(base_flat);
 
@@ -699,16 +747,18 @@ void markdown_increment_version(document *doc) {
                 continue;
             }
 
+            //calculate length to prevent overflow
             size_t actual_len = curr->len;
             if (curr->pos + actual_len > total_len)
                 actual_len = total_len - curr->pos;
 
+            //delete using memmove
             memmove(shared_flat + curr->pos, shared_flat + curr->pos + actual_len, total_len - curr->pos - actual_len + 1);
         }
         curr = curr->next;
     }
 
-    // --- Collect inserts into array ---
+    // Collect inserts into array
     int n = count_edits(edit_queue);
     edit **insert_edits = malloc(n * sizeof(edit*));
     int idx = 0;
@@ -719,7 +769,7 @@ void markdown_increment_version(document *doc) {
         curr = curr->next;
     }
 
-    // Sort insert_edits by .pos ascending
+    // Sort insert_edits by position 
     for (int i = 0; i < idx - 1; i++) {
         for (int j = i + 1; j < idx; j++) {
             if (insert_edits[i]->pos > insert_edits[j]->pos) {
@@ -736,8 +786,11 @@ void markdown_increment_version(document *doc) {
         edit *e = insert_edits[i];
         size_t insert_len = strlen(e->text);
         size_t old_len = strlen(shared_flat);
+
+        // Clamp position to prevent writing past end
         if (e->pos + offset > old_len) e->pos = old_len - offset;
 
+        // allocate new buffer for result
         char *new_flat = malloc(old_len + insert_len + 1);
         memcpy(new_flat, shared_flat, e->pos + offset);
         memcpy(new_flat + e->pos + offset, e->text, insert_len);
@@ -749,7 +802,7 @@ void markdown_increment_version(document *doc) {
 
     free(insert_edits);
 
-    // Rebuild head
+    // Rebuild committed document - head
     chunk *new_chunk = malloc(sizeof(chunk));
     new_chunk->text = strdup_safe(shared_flat);
     new_chunk->next = NULL;
@@ -809,51 +862,6 @@ void markdown_increment_version(document *doc) {
 
     markdown_free(doc);
     return 0;
-
-    /*
-    document *doc = markdown_init();
-
-    // Version 0: Insert list text
-    markdown_insert(doc, 0, 0, "List item\n");
-    markdown_increment_version(doc); // Version 1
-
-    // Version 1: Convert to unordered list
-    markdown_unordered_list(doc, 1, 0);
-    markdown_increment_version(doc); // Version 2
-
-    // Version 2: Add newline after list
-    markdown_newline(doc, 2, strlen("- List item"));
-    markdown_increment_version(doc); // Version 3
-
-    // v3: Insert code snippet
-    char *staged3 = flatten_staged(doc);
-    size_t insert_pos = strlen(staged3);
-    free(staged3);
-    markdown_insert(doc, 3, insert_pos, "x = 5;");
-    markdown_increment_version(doc); // version 4
-
-    //compute range BEFORE incrementing again
-    char *staged4 = flatten_staged(doc);
-    size_t start = strlen("- List item\n\n");
-    size_t end = strlen(staged4);  // end of "x = 5;"
-    printf("DEBUG code wrap range: start=%zu, end=%zu\n", start, end);
-    free(staged4);
-
-    // v4: Add backticks
-    markdown_code(doc, 4, start, end);
-    markdown_increment_version(doc); // version 5
-
-
-    // Final: Flatten and print
-    char *result = markdown_flatten(doc);
-    printf("Final Output:\n%s\n", result);  // Expect:
-    // - List item
-    // `x = 5;`
-    free(result);
-    markdown_free(doc);
-    return 0;
-    */
-
 }
 #endif
 
