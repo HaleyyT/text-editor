@@ -4,15 +4,7 @@
 #include <ctype.h>
 #include <sys/types.h>
 
-typedef enum { EDIT_INSERT, EDIT_DELETE } edit_type;
 
-typedef struct edit {
-    edit_type type;
-    size_t pos;
-    size_t len;      // for delete
-    char *text;      // for insert
-    struct edit *next;
-} edit;
 
 static edit *edit_queue = NULL;
 static char *shared_flat = NULL;
