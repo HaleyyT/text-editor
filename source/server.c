@@ -36,10 +36,9 @@ int main(int argc, char *argv[]) {
         if (bytes <= 0) continue;
 
         if (strcmp(req.command, "DISCONNECT") == 0) {
+
         // Clean up client FIFO or perform acknowledgment
         //FIFO stil open and respond
-        return 0;
-
         int client_fd = open(req.client_fifo, O_WRONLY);
         if (client_fd >= 0) {
             // You can just send an empty string or "DISCONNECTED"
@@ -55,6 +54,7 @@ int main(int argc, char *argv[]) {
 
         printf("[SERVER] Client %s disconnected\n", req.client_fifo);
         continue; // or retur22n, if you're exiting the thread
+        return 0;
     }
 
 
