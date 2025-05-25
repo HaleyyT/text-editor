@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string.h>
-#include "ipc.h"
+#include "../libs/ipc.h"
 #include "markdown.h" // for the document functions
 
 #define SERVER_FIFO "markdown_server"

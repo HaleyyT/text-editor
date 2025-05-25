@@ -20,4 +20,6 @@ typedef struct document {
     uint64_t version;
 } document;
 
+
+
 #endif
