@@ -64,7 +64,6 @@ int main(int argc, char *argv[]) {
             printf("[SERVER] Client %s disconnected\n", req.client_fifo);
             continue; // Stay alive for other clients
         }
-        // === END FIX ===
 
         // Log received request
         printf("Received request: %s at %zu: %s\n", req.command, req.pos, req.text);
@@ -83,6 +82,12 @@ int main(int argc, char *argv[]) {
         }
 
         char *flat = markdown_flatten(doc);
+        size_t flat_len = strlen(flat);
+        if (flat_len > 0 && flat[flat_len - 1] == '\n') {
+            printf("[DEBUG] flat already ends with newline\n");
+        } else {
+            printf("[DEBUG] flat does NOT end with newline\n");
+}
         char response[4096];
         snprintf(response, sizeof(response),
                  "role:editor\nversion:%llu\nlength:%zu\n%s",
@@ -92,6 +97,7 @@ int main(int argc, char *argv[]) {
         close(client_fd);
         free(flat);
     }
+    
 
     // Cleanup on shutdown
     markdown_free(doc);
