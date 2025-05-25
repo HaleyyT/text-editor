@@ -38,6 +38,7 @@ int main(int argc, char *argv[]) {
         if (strcmp(req.command, "DISCONNECT") == 0) {
         // Clean up client FIFO or perform acknowledgment
         //FIFO stil open and respond
+        return 0;
 
         int client_fd = open(req.client_fifo, O_WRONLY);
         if (client_fd >= 0) {
