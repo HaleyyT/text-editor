@@ -9,10 +9,23 @@
  */
 
 //Chunk store text and has ptr to taverse to next 
+
+typedef enum { EDIT_INSERT, EDIT_DELETE } edit_type;
+
+typedef struct edit {
+    edit_type type;
+    size_t pos;
+    size_t len;      // for delete
+    char *text;      // for insert
+    struct edit *next;
+} edit;
+
+
 typedef struct chunk {
     char *text;
     struct chunk *next;
 } chunk;
+
 
 typedef struct document {
     chunk *staged_head;

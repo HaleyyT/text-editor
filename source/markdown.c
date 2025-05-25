@@ -15,7 +15,6 @@ typedef struct edit {
 } edit;
 
 static edit *edit_queue = NULL;
-
 static char *shared_flat = NULL;
 static char *base_flat = NULL; 
 static uint64_t flat_version = (uint64_t)(-1); 
