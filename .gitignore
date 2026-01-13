@@ -20,6 +20,11 @@ markdown
 /bin/
 /obj/
 
+# Runtime FIFO files
+markdown_server
+client_fifo_*
+
+
 # Logs
 *.log
 
