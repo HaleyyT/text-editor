@@ -37,7 +37,29 @@ int main(int argc, char *argv[]) {
         }
         req.pos = (size_t)atoi(argv[2]);
         strncpy(req.text, argv[3], sizeof(req.text) - 1);
+    } 
+
+    if (strcmp(req.command, "delete") == 0) {
+        if (argc < 4) {
+        fprintf(stderr, "Usage: %s delete <pos> <len>\n", argv[0]);
+        unlink(client_fifo);
+        return 1;
     }
+    req.pos = (size_t)atoi(argv[2]);
+    req.len = (size_t)atoi(argv[3]);
+    }
+
+    if (strcmp(req.command, "bold") == 0) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s bold <start> <end>\n", argv[0]);
+        unlink(client_fifo);
+        return 1;
+    }
+    req.pos = (size_t)atoi(argv[2]);       // start
+    req.len = (size_t)atoi(argv[3]);       // end (store in len)
+}
+
+    
 
     // 3) Send request to server
     int server_fd = open(SERVER_FIFO, O_WRONLY);
