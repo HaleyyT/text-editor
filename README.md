@@ -1,4 +1,4 @@
-# Markdown Server/Client (C, POSIX FIFO)
+# C Client/Server Text Editor using POSIX FIFOs (IPC)
 
 A small client–server prototype in C that maintains a shared “markdown” document on the server and lets clients submit edits over POSIX named pipes (FIFOs).
 
