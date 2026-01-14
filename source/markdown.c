@@ -828,13 +828,10 @@ void markdown_increment_version(document *doc) {
 }
 
 
-
 #ifdef DEBUG_MARKDOWN
     //gcc -DDEBUG_MARKDOWN markdown.c -o markdown
-
     //gcc -DDEBUG_MARKDOWN -g -fsanitize=address -o markdown markdown.c
     //leaks --atExit -- ./markdown
-
 
     int main() {
 // Insert all 3 lines

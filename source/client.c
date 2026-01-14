@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
     strcpy(req.client_fifo, client_fifo);
     strncpy(req.command, argv[1], sizeof(req.command) - 1);
 
+    // -- ACCEPT EDITING COMMANDS --
     // If the command is "insert", expect two additional args: position and text
     if (strcmp(req.command, "insert") == 0) {
         if (argc < 4) {
@@ -58,8 +59,6 @@ int main(int argc, char *argv[]) {
     req.pos = (size_t)atoi(argv[2]);       // start
     req.len = (size_t)atoi(argv[3]);       // end (store in len)
 }
-
-    
 
     // 3) Send request to server
     int server_fd = open(SERVER_FIFO, O_WRONLY);

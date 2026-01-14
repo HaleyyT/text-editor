@@ -50,6 +50,7 @@ typedef struct document {
 typedef struct edit_request {
     char command[COMMAND_MAX];
     size_t pos;
+    size_t len; 
     char text[TEXT_MAX];
     char client_fifo[FIFO_MAX];
 } edit_request;
