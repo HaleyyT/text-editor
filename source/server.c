@@ -21,6 +21,8 @@ int main(int argc, char *argv[]) {
     unlink(SERVER_FIFO);
 
     printf("Server starting...\n");
+    printf("Server PID: %d\n", getpid());
+    fflush(stdout); 
 
     // Create named pipe if it doesn't exist
     if (mkfifo(SERVER_FIFO, 0666) == -1) {
@@ -38,7 +40,7 @@ int main(int argc, char *argv[]) {
     document *doc = markdown_init();
 
     while (1) {
-        edit_request req;
+        struct edit_request req;
         ssize_t bytes = read(server_fd, &req, sizeof(req));
         if (bytes <= 0) continue; // Retry on empty or failed read
 
@@ -68,10 +70,18 @@ int main(int argc, char *argv[]) {
         // Log received request
         printf("Received request: %s at %zu: %s\n", req.command, req.pos, req.text);
 
-        // Process insert operation
+        // Process editing operations
         if (strcmp(req.command, "insert") == 0) {
             markdown_insert(doc, doc->version, req.pos, req.text);
             markdown_increment_version(doc); // Commit change to document
+        } else if (strcmp(req.command, "delete") == 0) {
+            markdown_delete(doc, doc->version, req.pos, req.len);
+            markdown_increment_version(doc);
+        }
+        else if (strcmp(req.command, "bold") == 0) {
+            // if your API is (doc, version, start, end):
+            markdown_bold(doc, doc->version, req.pos, req.len);
+            markdown_increment_version(doc);
         }
 
         // Reply with updated document state
