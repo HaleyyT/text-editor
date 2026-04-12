@@ -1,6 +1,6 @@
 # Concurrent FIFO Text Editor in C
 
-This project is now a concurrent client/server markdown editor built around:
+This project is a concurrent client-server markdown editor built with:
 
 - A signal-based handshake so clients can request a session from the server.
 - Per-client FIFO channels for isolated client-to-server and server-to-client traffic.
@@ -15,7 +15,7 @@ This project is now a concurrent client/server markdown editor built around:
 3. The server creates `FIFO_C2S_<pid>` and `FIFO_S2C_<pid>`, then signals the client with `SIGUSR2`.
 4. The client sends its username over the private FIFO.
 5. The server authenticates the user from `roles.txt`, returns the current document snapshot, and then accepts commands.
-6. Each client is handled in its own detached thread, while document mutations are serialized with a mutex.
+6. Each client is handled in its own detached thread, while document mutations are serialised with a mutex.
 
 ## Supported Commands
 
@@ -43,7 +43,6 @@ Start the server:
 ./server 2
 ```
 
-The numeric argument is kept to match the assignment-style server interface.
 
 Connect as a writer and inspect the initial snapshot:
 
@@ -76,7 +75,7 @@ This script exercises:
 - signal-based handshake
 - authenticated writer session
 - authenticated reader session
-- unauthorized-user rejection
+- unauthorised-user rejection
 - shared document visibility across clients
 
 ## Example Output
@@ -92,12 +91,11 @@ length:11
 hello world
 ```
 
-## Why This Version Is Stronger
+## What this project demonstrates
 
 - It demonstrates real multi-client coordination rather than a single shared demo FIFO.
-- The handshake is explicit and easy to explain in an interview.
-- The server protects the shared document with synchronization instead of hoping requests arrive one at a time.
-- Version checks make concurrency behavior visible and defensible.
+- The server protects the shared document with synchronisation instead of hoping requests arrive one at a time.
+- Version checks make concurrency behavior visible.
 
 ## Files
 
