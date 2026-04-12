@@ -1,5 +1,5 @@
-#ifndef DOCUMENT_H
-#define DOCUMENT_H
+#ifndef IPC_H
+#define IPC_H
 #include <stdint.h>
 #include <stddef.h>   // for size_t
 

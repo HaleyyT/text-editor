@@ -1,11 +1,11 @@
 # TODO: make sure the rules for server client and markdown filled!
 CC := gcc
-CFLAGS := -Wall -Wextra -std=c11
+CFLAGS := -Wall -Wextra -std=c11 -pthread
 
 all: server client
 
 #server: built from server.c + markdown.o
-server: server.o markdown.o 
+server: server.o markdown.o
 	$(CC) $(CFLAGS) server.o markdown.o -o server 
 
 client: client.o markdown.o
@@ -19,6 +19,10 @@ client.o: source/client.c
 
 markdown.o: source/markdown.c
 	$(CC) $(CFLAGS) -Ilibs -c source/markdown.c -o markdown.o
+
+demo: server client
+	chmod +x scripts/e2e_demo.sh
+	./scripts/e2e_demo.sh
 
 
 clean:
