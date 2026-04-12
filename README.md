@@ -1,85 +1,107 @@
-# C Client/Server Text Editor using POSIX FIFOs (IPC)
+# Concurrent FIFO Text Editor in C
 
-A small client–server prototype in C that maintains a shared “markdown” document on the server and lets clients submit edits over POSIX named pipes (FIFOs).
+This project is now a concurrent client/server markdown editor built around:
 
-The server keeps a versioned document state in memory. Each client request is sent to the server and the updated document is returned to the client.
+- A signal-based handshake so clients can request a session from the server.
+- Per-client FIFO channels for isolated client-to-server and server-to-client traffic.
+- Role-based access control from `roles.txt`.
+- A shared versioned markdown document protected by a server-side mutex.
+- Optimistic concurrency checks so stale writers are rejected instead of silently overwriting newer work.
 
-## Quick Demo
-- Server maintains a single shared document state (`version`, content).
-- Client sends an `insert` request with a position + text, following with bold and delete requests.
-- Server applies the edit and increments document version.
-- Client receives and prints the updated document state.
-- `DISCONNECT` supported (client exits after receiving response).
+## Architecture
 
-### Build
+1. The server starts and prints its PID.
+2. A client sends `SIGUSR1` to that PID to request a session.
+3. The server creates `FIFO_C2S_<pid>` and `FIFO_S2C_<pid>`, then signals the client with `SIGUSR2`.
+4. The client sends its username over the private FIFO.
+5. The server authenticates the user from `roles.txt`, returns the current document snapshot, and then accepts commands.
+6. Each client is handled in its own detached thread, while document mutations are serialized with a mutex.
+
+## Supported Commands
+
+- `get`
+- `insert <pos> <text>`
+- `delete <pos> <len>`
+- `bold <start> <end>`
+- `italic <start> <end>`
+- `heading <level> <pos>`
+- `newline <pos>`
+
+Users with `read` permission can connect and inspect the document. Users with `write` permission can edit it.
+
+## Build
+
 ```bash
 make
 ```
 
-**Terminal 1:**
+## Run
+
+Start the server:
+
 ```bash
 ./server 2
 ```
 
-**Terminal 2:**
+The numeric argument is kept to match the assignment-style server interface.
+
+Connect as a writer and inspect the initial snapshot:
+
 ```bash
-./client insert 0 "hello world"
-./client bold 6 11
-./client delete 5 1
-./client insert 5 ","
-./client DISCONNECT
-
-```
-**Expected Output:**
-```bash
-EDIT role:editor
-EDIT version:1
-EDIT length:11
-EDIT hello world
-
-EDIT role:editor
-EDIT version:2
-EDIT length:15
-EDIT hello **world**
-
-EDIT role:editor
-EDIT version:3
-EDIT length:14
-EDIT hello**world**
-
-EDIT role:editor
-EDIT version:4
-EDIT length:15
-EDIT hello,**world**
-
+./client <server_pid> daniel
 ```
 
-## Features
-End-to-end (server + client)
+Apply an edit:
 
-FIFO-based request/response IPC
+```bash
+./client <server_pid> daniel insert 0 "hello world"
+```
 
-Versioned document state held by the server
+Fetch the latest state as a read-only user:
 
-insert, delete, bold commands and DISCONNECT
+```bash
+./client <server_pid> ryan get
+```
 
-Markdown engine (library)
+## Demo / Regression Check
 
-The document engine (source/markdown.c) implements additional editing/formatting operations (exposed as functions).
-Examples include: insert/delete, versioning, flatten/serialize, and formatting helpers (headings, lists, blockquote, bold/italic, links, code, horizontal rules) depending on the implementation.
+Run the end-to-end demo script:
 
-## Project structure
+```bash
+make demo
+```
 
-source/server.c — server loop: reads requests, applies edits, replies to client FIFO
+This script exercises:
 
-source/client.c — CLI client: sends a command and prints the server response
+- signal-based handshake
+- authenticated writer session
+- authenticated reader session
+- unauthorized-user rejection
+- shared document visibility across clients
 
-source/markdown.c/.h — document implementation
+## Example Output
 
-libs/ipc.h — request struct + IPC constants
+```text
+role:write
+version:0
+length:0
 
-## Notes
+role:write
+version:1
+length:11
+hello world
+```
 
-This is a working prototype protocol using a fixed-size request struct over FIFO.
+## Why This Version Is Stronger
 
-Debug output can be enabled/disabled via compile flags (see Makefile).
+- It demonstrates real multi-client coordination rather than a single shared demo FIFO.
+- The handshake is explicit and easy to explain in an interview.
+- The server protects the shared document with synchronization instead of hoping requests arrive one at a time.
+- Version checks make concurrency behavior visible and defensible.
+
+## Files
+
+- `source/server.c`: handshake, session setup, authentication, per-client threads, request processing.
+- `source/client.c`: handshake client, request formatting, snapshot decoding.
+- `source/markdown.c`: document operations and version management.
+- `roles.txt`: user permissions.
