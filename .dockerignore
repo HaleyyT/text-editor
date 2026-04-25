@@ -1,0 +1,11 @@
+.git
+.gitignore
+.DS_Store
+.vscode
+__pycache__
+*.pyc
+*.o
+client
+server
+markdown
+demo/__pycache__

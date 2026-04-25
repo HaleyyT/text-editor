@@ -6,7 +6,6 @@ import sys
 import threading
 import time
 import tempfile
-import shutil
 from collections import deque
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -22,6 +21,8 @@ WORKER = ROOT / "demo" / "session_worker.py"
 SERVER_BIN = ROOT / "server"
 SEED_ROLES_FILE = ROOT / "roles.txt"
 EVENT_LIMIT = 80
+HOST = os.environ.get("DEMO_HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", os.environ.get("DEMO_PORT", "8000")))
 
 
 class DemoError(RuntimeError):
@@ -167,6 +168,22 @@ class DemoController:
         if SEED_ROLES_FILE.exists():
             seed_text = SEED_ROLES_FILE.read_text(encoding="utf-8")
         self.runtime_roles_file.write_text(seed_text, encoding="utf-8")
+
+    def cleanup_runtime(self):
+        for fifo in self.runtime_dir.glob("FIFO_*"):
+            try:
+                fifo.unlink()
+            except OSError:
+                pass
+        try:
+            self.runtime_roles_file.unlink(missing_ok=True)
+        except TypeError:
+            if self.runtime_roles_file.exists():
+                self.runtime_roles_file.unlink()
+        try:
+            self.runtime_dir.rmdir()
+        except OSError:
+            pass
 
     def log_event(self, kind, message, **extra):
         event = {"timestamp": now_iso(), "kind": kind, "message": message}
@@ -437,6 +454,8 @@ class DemoHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/healthz":
+            return self.respond_json({"ok": True, "status": "healthy"})
         if parsed.path == "/api/state":
             return self.respond_json(controller.state())
         return super().do_GET()
@@ -496,14 +515,15 @@ class DemoHandler(SimpleHTTPRequestHandler):
 
 
 def main():
-    server = ThreadingHTTPServer(("127.0.0.1", 8000), DemoHandler)
-    print("Demo UI: http://127.0.0.1:8000")
+    server = ThreadingHTTPServer((HOST, PORT), DemoHandler)
+    print(f"Demo UI: http://{HOST}:{PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         controller.reset_demo()
+        controller.cleanup_runtime()
         server.server_close()
 
 
