@@ -1,3 +1,4 @@
-ryan read
-yao read
 daniel write
+yao write
+ryan read
+haley write

@@ -78,6 +78,51 @@ This script exercises:
 - unauthorised-user rejection
 - shared document visibility across clients
 
+## Live Frontend Demo
+
+This repo also includes a browser-based demo that sits on top of the real C backend and visualises:
+
+- live shared document state
+- connected client sessions and their PIDs
+- per-user roles
+- version numbers after each accepted edit
+- stale-write rejection from optimistic concurrency control
+- event timeline for connect, refresh, edit, and reject flows
+
+Start it with:
+
+```bash
+make demo-ui
+```
+
+Then open `http://127.0.0.1:8000`.
+
+For frontend-only iteration with auto-refresh, use a separate dev server:
+
+```bash
+make demo-ui
+```
+
+In another terminal:
+
+```bash
+make demo-ui-dev
+```
+
+Then open `http://127.0.0.1:8001`.
+
+This keeps the frontend dev loop separate from the backend demo server:
+
+- `8000`: real demo backend plus UI
+- `8001`: frontend dev server with auto-refresh and `/api` proxying to `8000`
+
+Suggested recruiter demo flow:
+
+1. Click `Connect Demo Users`.
+2. Show that `daniel` and `yao` are writers while `ryan` is read-only.
+3. Run `Stale Write Demo` to show one writer succeeding and a competing stale write being rejected.
+4. Use the interactive controls to fetch snapshots and apply edits while the shared version counter changes.
+
 ## Example Output
 
 ```text
@@ -96,10 +141,15 @@ hello world
 - It demonstrates real multi-client coordination rather than a single shared demo FIFO.
 - The server protects the shared document with synchronisation instead of hoping requests arrive one at a time.
 - Version checks make concurrency behavior visible.
+- The frontend demo makes concurrency and collaboration visible to non-systems audiences without replacing the underlying C implementation.
 
 ## Files
 
 - `source/server.c`: handshake, session setup, authentication, per-client threads, request processing.
 - `source/client.c`: handshake client, request formatting, snapshot decoding.
 - `source/markdown.c`: document operations and version management.
+- `demo/server.py`: local bridge and HTTP server for the live frontend demo.
+- `demo/dev_server.py`: separate frontend dev server with auto-refresh and `/api` proxying.
+- `demo/session_worker.py`: one real FIFO/signal client session per simulated user.
+- `demo/static/`: frontend UI for live state, sessions, and event timeline.
 - `roles.txt`: user permissions.

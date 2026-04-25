@@ -37,3 +37,6 @@ Thumbs.db
 #debug 
 *.dSYM/
 
+# Python cache
+__pycache__/
+*.pyc

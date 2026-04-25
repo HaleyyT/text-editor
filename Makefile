@@ -2,6 +2,8 @@
 CC := gcc
 CFLAGS := -Wall -Wextra -std=c11 -pthread
 
+.PHONY: all demo demo-ui demo-ui-dev clean
+
 all: server client
 
 #server: built from server.c + markdown.o
@@ -23,6 +25,12 @@ markdown.o: source/markdown.c
 demo: server client
 	chmod +x scripts/e2e_demo.sh
 	./scripts/e2e_demo.sh
+
+demo-ui: server client
+	python3 demo/server.py
+
+demo-ui-dev:
+	python3 demo/dev_server.py
 
 
 clean:

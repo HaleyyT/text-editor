@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Concurrent Text Editor Demo</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section id="protocol-warning" class="panel warning-panel" hidden>
+        <p class="panel-label">Open The Live Demo</p>
+        <h2>Use the local server instead of the static file</h2>
+        <p class="panel-copy">
+          This page is meant to run from <code>http://127.0.0.1:8000/</code> so the buttons can talk to the demo API.
+        </p>
+      </section>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Concurrent FIFO Text Editor</p>
+          <h1>Live collaboration, version conflicts, and shared state in motion.</h1>
+          <p class="lede">
+            This demo sits on top of the real C server and visualises authentication,
+            role-based access, optimistic concurrency control, and multi-client updates.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button data-action="connect-demo">Connect Demo Users</button>
+          <button data-action="stale-demo" class="secondary">Run Stale Write Demo</button>
+          <button data-action="parallel-demo" class="secondary">Run Parallel Requests</button>
+          <button data-action="reset" class="ghost">Reset Demo</button>
+        </div>
+      </section>
+
+      <section class="panel guide-panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">How To Demo It</p>
+            <h2>Use two writers, then show one reader seeing the same shared state</h2>
+          </div>
+        </div>
+        <div class="guide-grid">
+          <div>
+            <strong>1. Connect the users</strong>
+            <p class="panel-copy">Click <code>Connect Demo Users</code>. This opens real FIFO client sessions.</p>
+          </div>
+          <div>
+            <strong>2. Edit as the writers</strong>
+            <p class="panel-copy"><code>daniel</code> and <code>yao</code> can both write. Use them for <code>insert</code>, <code>delete</code>, and formatting commands.</p>
+          </div>
+          <div>
+            <strong>3. Show collaboration</strong>
+            <p class="panel-copy">Switch to <code>ryan</code> and use <code>get</code> or <code>Refresh Snapshot</code> to show the read-only user seeing the latest state.</p>
+          </div>
+          <div>
+            <strong>4. Show concurrency</strong>
+            <p class="panel-copy">Run <code>Stale Write Demo</code> to show one writer succeeding, the version incrementing, and the other writer getting <code>STALE_VERSION</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-grid">
+        <article class="panel metric-panel">
+          <p class="panel-label">Server</p>
+          <div class="metric-row">
+            <span id="server-badge" class="badge">Offline</span>
+            <span id="server-pid" class="metric-subtle">PID -</span>
+          </div>
+          <pre id="server-log" class="mini-log">No backend activity yet.</pre>
+        </article>
+
+        <article class="panel metric-panel">
+          <p class="panel-label">Shared Document</p>
+          <div class="metric-row">
+            <strong id="doc-version">v0</strong>
+            <span id="doc-length" class="metric-subtle">0 chars</span>
+          </div>
+          <p class="panel-copy">
+            Every accepted write increments the shared version. Stale writes should be rejected.
+          </p>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <article class="panel editor-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-label">Live State</p>
+              <h2>Shared markdown document</h2>
+            </div>
+          </div>
+          <pre id="document-view" class="document-view"></pre>
+        </article>
+
+        <aside class="panel controls-panel">
+          <p class="panel-label">Interactive Controls</p>
+          <label>
+            User
+            <select id="username">
+              <option value="daniel">daniel</option>
+              <option value="ryan">ryan</option>
+              <option value="yao">yao</option>
+            </select>
+          </label>
+          <div class="user-status">
+            <span id="selected-role" class="badge">Unknown role</span>
+            <p id="role-hint" class="panel-copy">
+              Connect the demo users first. Only <code>daniel</code> can write.
+            </p>
+          </div>
+          <label>
+            Command
+            <select id="command">
+              <option value="get">get</option>
+              <option value="insert">insert</option>
+              <option value="delete">delete</option>
+              <option value="bold">bold</option>
+              <option value="italic">italic</option>
+              <option value="heading">heading</option>
+              <option value="newline">newline</option>
+            </select>
+          </label>
+          <p id="command-hint" class="panel-copy">
+            Read-only users should use <code>get</code>. Writer commands are enabled for <code>daniel</code>.
+          </p>
+          <label>
+            Position
+            <input id="pos" type="number" min="0" value="0" />
+          </label>
+          <p id="pos-hint" class="panel-copy">
+            For <code>insert</code>, this is the insertion index. If it is past the document end, the backend appends the payload.
+          </p>
+          <label id="length-field">
+            <span id="length-label">Length / End / Level</span>
+            <input id="length" type="number" min="0" value="0" />
+          </label>
+          <p id="length-hint" class="panel-copy">
+            This field is ignored for <code>insert</code>.
+          </p>
+          <label>
+            Payload
+            <textarea id="payload" rows="4" placeholder="Text for insert"></textarea>
+          </label>
+          <div class="preview-box">
+            <p class="panel-label">Effective Operation</p>
+            <p id="operation-summary" class="panel-copy">
+              The frontend will show the backend-equivalent effect for the current command here.
+            </p>
+            <pre id="operation-preview" class="mini-log">(no preview yet)</pre>
+          </div>
+          <div class="control-actions">
+            <button data-action="send-command">Send Command</button>
+            <button data-action="refresh" class="secondary">Refresh Snapshot</button>
+          </div>
+          <p id="action-feedback" class="panel-copy">
+            Tip: start with <code>daniel</code> + <code>insert</code>, then try <code>yao</code>, then switch to <code>ryan</code> and refresh.
+          </p>
+        </aside>
+      </section>
+
+      <section class="panel register-panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">Register User</p>
+            <h2>Add a new demo user and role</h2>
+          </div>
+        </div>
+        <div class="register-grid">
+          <label>
+            Username
+            <input id="register-username" type="text" placeholder="alex" />
+          </label>
+          <label>
+            Role
+            <select id="register-role">
+              <option value="write">write</option>
+              <option value="read">read</option>
+            </select>
+          </label>
+          <button data-action="register-user">Register And Connect</button>
+        </div>
+        <p class="panel-copy">
+          This writes the user to <code>roles.txt</code>, so newly registered users can connect through the real backend.
+        </p>
+      </section>
+
+      <section class="cards-grid" id="sessions"></section>
+
+      <section class="panel timeline-panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">Timeline</p>
+            <h2>Connection, refresh, edit, and rejection events</h2>
+          </div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
