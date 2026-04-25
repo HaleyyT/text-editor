@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 LINE_MAX = 512
-ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RUNTIME_DIR = Path(os.environ.get("DEMO_RUNTIME_DIR", str(PROJECT_ROOT)))
 
 
 class ProtocolError(RuntimeError):
@@ -19,7 +20,7 @@ def write_full(stream, data):
     stream.flush()
 
 
-def read_line(stream):
+def read_line_bytes(stream):
     line = stream.readline()
     if not line:
         raise EOFError("connection closed")
@@ -27,7 +28,7 @@ def read_line(stream):
 
 
 def read_snapshot(fd_s2c):
-    header = read_line(fd_s2c).rstrip("\r\n")
+    header = read_line_bytes(fd_s2c).decode("utf-8", errors="strict").rstrip("\r\n")
     if header.startswith("ERROR "):
         raise ProtocolError(header[6:])
 
@@ -41,9 +42,10 @@ def read_snapshot(fd_s2c):
     document = ""
 
     if length:
-        document = fd_s2c.read(length)
-        if len(document) != length:
+        document_bytes = fd_s2c.read(length)
+        if len(document_bytes) != length:
             raise ProtocolError("short snapshot body")
+        document = document_bytes.decode("utf-8", errors="strict")
 
     return {
         "role": role,
@@ -55,10 +57,10 @@ def read_snapshot(fd_s2c):
 
 def send_request(fd_c2s, command, version, pos=0, length=0, payload=""):
     payload_length = len(payload.encode("utf-8"))
-    request = f"REQUEST {command} {version} {pos} {length} {payload_length}\n"
+    request = f"REQUEST {command} {version} {pos} {length} {payload_length}\n".encode("utf-8")
     fd_c2s.write(request)
     if payload:
-        fd_c2s.write(payload)
+        fd_c2s.write(payload.encode("utf-8"))
     fd_c2s.flush()
 
 
@@ -79,13 +81,13 @@ def main():
     os.kill(server_pid, signal.SIGUSR1)
     signal.sigwait({signal.SIGUSR2})
 
-    fifo_c2s = ROOT / f"FIFO_C2S_{client_pid}"
-    fifo_s2c = ROOT / f"FIFO_S2C_{client_pid}"
+    fifo_c2s = RUNTIME_DIR / f"FIFO_C2S_{client_pid}"
+    fifo_s2c = RUNTIME_DIR / f"FIFO_S2C_{client_pid}"
 
-    with open(fifo_c2s, "w", encoding="utf-8", newline="") as fd_c2s, open(
-        fifo_s2c, "r", encoding="utf-8", newline=""
+    with open(fifo_c2s, "wb", buffering=0) as fd_c2s, open(
+        fifo_s2c, "rb", buffering=0
     ) as fd_s2c:
-        write_full(fd_c2s, username + "\n")
+        write_full(fd_c2s, (username + "\n").encode("utf-8"))
         snapshot = read_snapshot(fd_s2c)
         send_message({"type": "connected", "snapshot": snapshot})
 
@@ -98,7 +100,7 @@ def main():
             action = message.get("action")
 
             if action == "disconnect":
-                write_full(fd_c2s, "DISCONNECT\n")
+                write_full(fd_c2s, b"DISCONNECT\n")
                 send_message({"type": "disconnected"})
                 return 0
 

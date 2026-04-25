@@ -82,13 +82,17 @@ function syncProtocolWarning() {
 }
 
 function selectedUserRole() {
+  const session = selectedSession();
+  return session?.role ?? null;
+}
+
+function selectedSession() {
   if (!currentState) {
     return null;
   }
 
   const username = el("username").value;
-  const session = currentState.sessions.find((entry) => entry.username === username);
-  return session?.role ?? null;
+  return currentState.sessions.find((entry) => entry.username === username) ?? null;
 }
 
 function updateUserOptions() {
@@ -138,12 +142,20 @@ function applySortedInserts(base, inserts) {
 }
 
 function computeEffectiveOperation() {
-  const snapshot = currentState?.snapshot ?? { document: "" };
-  const base = snapshot.document ?? "";
+  const snapshot = currentState?.snapshot ?? { document: "", version: 0 };
+  const session = selectedSession();
+  const base = session?.document ?? snapshot.document ?? "";
   const command = el("command").value;
   const pos = parseNumber(el("pos").value);
   const length = parseNumber(el("length").value);
   const payload = el("payload").value;
+
+  if (command !== "get" && session && session.version !== snapshot.version) {
+    return {
+      summary: `This session is stale at version ${session.version} while the shared document is version ${snapshot.version}. The backend will reject the write with STALE_VERSION until you refresh this user.`,
+      preview: base || "(empty document)",
+    };
+  }
 
   if (command === "get") {
     return {
@@ -397,7 +409,7 @@ async function handleAction(action) {
 
   if (action === "connect-demo") {
     result = await request("/api/connect-demo", { body: "{}" });
-    setFeedback("Connected demo users. Daniel can write; Ryan and Yao can fetch the shared state.");
+    setFeedback("Connected demo users. Daniel and Yao can write; Ryan is read-only.");
   } else if (action === "stale-demo") {
     result = await request("/api/demo/stale", { body: "{}" });
     setFeedback("Ran the stale write demo. One write should commit, increment the version, and a stale follow-up should be rejected.");

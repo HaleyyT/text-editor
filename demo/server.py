@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import json
+import os
 import subprocess
 import sys
 import threading
 import time
+import tempfile
+import shutil
 from collections import deque
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -17,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = ROOT / "demo" / "static"
 WORKER = ROOT / "demo" / "session_worker.py"
 SERVER_BIN = ROOT / "server"
-ROLES_FILE = ROOT / "roles.txt"
+SEED_ROLES_FILE = ROOT / "roles.txt"
 EVENT_LIMIT = 80
 
 
@@ -29,12 +32,12 @@ def now_iso():
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def read_roles():
+def read_roles(roles_file: Path):
     entries = []
-    if not ROLES_FILE.exists():
+    if not roles_file.exists():
         return entries
 
-    for line in ROLES_FILE.read_text(encoding="utf-8").splitlines():
+    for line in roles_file.read_text(encoding="utf-8").splitlines():
         parts = line.split()
         if len(parts) != 2:
             continue
@@ -43,17 +46,17 @@ def read_roles():
     return entries
 
 
-def append_role(username: str, role: str):
+def append_role(roles_file: Path, username: str, role: str):
     if not username or not username.replace("_", "").isalnum():
         raise DemoError("username must use letters, numbers, or underscores")
     if role not in {"read", "write"}:
         raise DemoError("role must be read or write")
 
-    entries = read_roles()
+    entries = read_roles(roles_file)
     if any(entry["username"] == username for entry in entries):
         raise DemoError("username already exists")
 
-    with ROLES_FILE.open("a", encoding="utf-8") as handle:
+    with roles_file.open("a", encoding="utf-8") as handle:
         handle.write(f"{username} {role}\n")
 
 
@@ -70,17 +73,21 @@ class SessionState:
 
 
 class SessionClient:
-    def __init__(self, server_pid: int, username: str):
+    def __init__(self, server_pid: int, username: str, runtime_dir: Path):
         self.server_pid = server_pid
         self.username = username
+        self.runtime_dir = runtime_dir
+        env = os.environ.copy()
+        env["DEMO_RUNTIME_DIR"] = str(runtime_dir)
         self.process = subprocess.Popen(
             [sys.executable, str(WORKER), str(server_pid), username],
-            cwd=ROOT,
+            cwd=runtime_dir,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            env=env,
         )
         self.lock = threading.Lock()
         message = self._read_message()
@@ -147,10 +154,19 @@ class DemoController:
         self.lock = threading.RLock()
         self.server_process = None
         self.server_pid = None
+        self.runtime_dir = Path(tempfile.mkdtemp(prefix="text_editor_demo_"))
+        self.runtime_roles_file = self.runtime_dir / "roles.txt"
         self.server_log = deque(maxlen=40)
         self.events = deque(maxlen=EVENT_LIMIT)
         self.sessions: Dict[str, SessionClient] = {}
         self.last_snapshot = {"role": "server", "version": 0, "length": 0, "document": ""}
+        self._seed_runtime_roles()
+
+    def _seed_runtime_roles(self):
+        seed_text = ""
+        if SEED_ROLES_FILE.exists():
+            seed_text = SEED_ROLES_FILE.read_text(encoding="utf-8")
+        self.runtime_roles_file.write_text(seed_text, encoding="utf-8")
 
     def log_event(self, kind, message, **extra):
         event = {"timestamp": now_iso(), "kind": kind, "message": message}
@@ -167,7 +183,7 @@ class DemoController:
 
             self.server_process = subprocess.Popen(
                 [str(SERVER_BIN), "2"],
-                cwd=ROOT,
+                cwd=self.runtime_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -197,7 +213,7 @@ class DemoController:
             if username in self.sessions and self.sessions[username].state.connected:
                 return self.sessions[username].state
 
-            session = SessionClient(self.server_pid, username)
+            session = SessionClient(self.server_pid, username, self.runtime_dir)
             self.sessions[username] = session
             self.last_snapshot = {
                 "role": session.state.role,
@@ -224,7 +240,7 @@ class DemoController:
 
     def register_user(self, username, role):
         with self.lock:
-            append_role(username, role)
+            append_role(self.runtime_roles_file, username, role)
             self.log_event("register", f"{username} registered", username=username, role=role)
             return {"username": username, "role": role}
 
@@ -329,7 +345,7 @@ class DemoController:
 
         def run(label, payload):
             username = "daniel" if label == "writer-a" else "yao"
-            session = SessionClient(self.server_pid, username)
+            session = SessionClient(self.server_pid, username, self.runtime_dir)
             base_version = session.state.version
             barrier.wait()
             results[label] = session.request("insert", base_version, pos=session.state.length, payload=payload)
@@ -377,8 +393,9 @@ class DemoController:
             self.server_log.clear()
             self.last_snapshot = {"role": "server", "version": 0, "length": 0, "document": ""}
             self.log_event("server", "Demo reset")
+            self._seed_runtime_roles()
 
-            for fifo in ROOT.glob("FIFO_*"):
+            for fifo in self.runtime_dir.glob("FIFO_*"):
                 try:
                     fifo.unlink()
                 except OSError:
@@ -402,10 +419,11 @@ class DemoController:
                         "connected": session.state.connected,
                         "pid": session.state.pid,
                         "last_error": session.state.last_error,
+                        "document": session.state.document,
                     }
                     for session in self.sessions.values()
                 ],
-                "roles": read_roles(),
+                "roles": read_roles(self.runtime_roles_file),
                 "events": list(self.events),
             }
 
